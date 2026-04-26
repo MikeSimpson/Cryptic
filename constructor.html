@@ -665,6 +665,18 @@ function buildInteractive(saved,places,gs,mb,cells,nums){
     "function clrE(){var a=document.getElementsByTagName('input');for(var i=0;i<a.length;i++){if(a[i].getAttribute('data-r')&&a[i].className.indexOf('err')>=0){a[i].value='';a[i].className=a[i].className.replace('err','').trim();}}document.getElementById('msg').textContent='';}",
     "function rv(){var a=document.getElementsByTagName('input');for(var i=0;i<a.length;i++){var k=a[i].getAttribute('data-r')+','+a[i].getAttribute('data-c');if(KEY[k]){a[i].value=KEY[k];a[i].className=a[i].className.replace('err','').trim();}}document.getElementById('msg').textContent='Revealed.';updDone();}",
     "if(CLUES.length>0)selectClue(0);",
+    // Push clue bar above keyboard when it appears
+    "function adjBar(){",
+    "  var bar=document.getElementById('cbar');if(!bar)return;",
+    "  if(window.visualViewport){",
+    "    var kbH=Math.max(0,window.innerHeight-window.visualViewport.height-window.visualViewport.offsetTop);",
+    "    bar.style.bottom=kbH+'px';",
+    "  }",
+    "}",
+    "if(window.visualViewport){",
+    "  window.visualViewport.addEventListener('resize',adjBar);",
+    "  window.visualViewport.addEventListener('scroll',adjBar);",
+    "}",
   ];
 
   if(anyAnnotated){
