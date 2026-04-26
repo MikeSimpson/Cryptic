@@ -1,0 +1,2192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The Cryptic Compiler</title>
+<link href="https://fonts.googleapis.com/css2?family=UnifrakturMaguntia&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+/* ── RESET ── */
+*{box-sizing:border-box;margin:0;padding:0;}
+
+/* ── THE WHOLE PAGE IS A NEWSPAPER ── */
+html,body{
+  min-height:100vh;
+  background:#e4dcc8;
+  background-image:
+    repeating-linear-gradient(0deg,transparent,transparent 26px,rgba(0,0,0,.045) 26px,rgba(0,0,0,.045) 27px);
+  font-family:'Crimson Pro',Georgia,serif;
+  color:#1a1008;
+}
+
+/* ── MASTHEAD ── */
+.np-masthead{
+  text-align:center;
+  padding:14px 24px 11px;
+  border-bottom:4px double #1a1008;
+  background:#e4dcc8;
+  position:sticky;top:0;z-index:100;
+}
+.np-masthead h1{
+  font-family:'UnifrakturMaguntia',cursive;
+  font-size:54px;color:#1a0e04;letter-spacing:.02em;line-height:1;
+}
+.np-masthead .np-sub{
+  font-family:'Space Mono',monospace;font-size:7.5px;
+  letter-spacing:.22em;text-transform:uppercase;color:#5a4a28;margin-top:3px;
+}
+.np-masthead .np-date{
+  font-family:'Crimson Pro',serif;font-style:italic;font-size:11px;
+  color:#6a5a38;margin-top:1px;
+  border-top:1px solid rgba(0,0,0,.2);margin-top:5px;padding-top:4px;
+}
+
+/* ── NEWSPAPER BODY — real CSS columns, text wraps around floated UI ── */
+.np-body{
+  column-count:5;
+  column-gap:0;
+  column-rule:1px solid rgba(0,0,0,.25);
+  padding:12px 0 40px;
+}
+
+/* ── ARTICLE TEXT ── */
+.np-art{
+  padding:0 14px 20px;
+  break-inside:avoid;
+}
+.np-art .np-hed{
+  font-family:'Playfair Display',serif;
+  font-size:13px;font-weight:900;line-height:1.2;
+  color:#1a0e04;margin-bottom:2px;
+}
+.np-art .np-hed.big{font-size:17px;}
+.np-art .np-byline{
+  font-family:'Space Mono',monospace;font-size:7px;
+  letter-spacing:.1em;text-transform:uppercase;
+  color:#6a5a38;margin-bottom:5px;
+}
+.np-art p{
+  font-family:'Crimson Pro',serif;font-size:9.5px;line-height:1.65;
+  color:#2a1a08;text-align:justify;
+}
+.np-art p+p{text-indent:1em;}
+.np-art .np-dropcap::first-letter{
+  float:left;font-family:'Playfair Display',serif;font-size:38px;
+  line-height:.8;padding-right:4px;padding-top:3px;
+  color:#1a0e04;font-weight:900;
+}
+.np-rule{border:none;border-top:1px solid rgba(0,0,0,.3);margin:6px 14px 14px;}
+.np-rule.thick{border-top:3px double rgba(0,0,0,.3);margin:8px 14px 14px;}
+
+/* ── UI PANELS — floated inside the column flow so text wraps around them ── */
+/* The panels together span 3 of the 5 columns, centered */
+.ui-panels{
+  /* float across columns */
+  column-span:all;
+  display:flex;
+  gap:12px;
+  padding:10px 0 10px;
+  border-top:2px solid #1a1008;
+  border-bottom:2px solid #1a1008;
+  margin-bottom:8px;
+}
+
+/* Each panel looks like a newspaper section/insert */
+.lpanel,.rpanel{
+  flex:1;
+  background:#ede5d0;
+  border:1px solid rgba(0,0,0,.25);
+  border-top:3px solid #1a1008;
+  overflow-y:auto;
+  max-height:82vh;
+  position:sticky;
+  top:88px;
+}
+.lpanel{border-right:2px solid #1a1008;}
+.rpanel{border-left:2px solid #1a1008;}
+.pinner{padding:12px 14px 32px;}
+.phead{
+  font-family:'Playfair Display',serif;font-size:9px;font-weight:700;
+  letter-spacing:.18em;text-transform:uppercase;color:#5a4a28;
+  border-bottom:1.5px solid #1a1008;padding-bottom:4px;margin-bottom:10px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+
+/* ── SECTION CARDS inside panels ── */
+.sec{
+  background:rgba(255,252,240,.7);
+  border:1px solid rgba(0,0,0,.18);border-top:2.5px solid #2a1a08;
+  margin-bottom:10px;padding:10px 12px;
+}
+.slbl{font-family:'Space Mono',monospace;font-size:7.5px;letter-spacing:.14em;text-transform:uppercase;color:#8a7a50;display:block;margin-bottom:3px;}
+
+/* ── HELPERS ── */
+.mono{font-family:'Space Mono',monospace;}
+.lbl{font-family:'Space Mono',monospace;font-size:7.5px;letter-spacing:.13em;text-transform:uppercase;color:#8a7a50;display:block;margin-bottom:4px;}
+
+/* ── INPUTS ── */
+input[type=text],input[type=number]{background:transparent;border:none;outline:none;color:#1a1008;font-family:'Crimson Pro',serif;}
+input::placeholder{color:#a89870;}
+.inp{width:100%;font-size:18px;border-bottom:1.5px solid #a89870;padding:3px 0;background:transparent;border-top:none;border-left:none;border-right:none;outline:none;color:#1a1008;font-family:'Crimson Pro',serif;}
+.inp:focus{border-bottom-color:#1a1008;}
+.inpsm{font-size:13px;border-bottom:1px solid #c0a878;padding:2px 0;background:transparent;border-top:none;border-left:none;border-right:none;outline:none;color:#1a1008;font-family:'Crimson Pro',serif;}
+.inpsm:focus{border-bottom-color:#1a1008;}
+
+/* ── BUTTONS ── */
+.btn{padding:4px 11px;background:#1a1008;color:#f0ead8;border:none;font-family:'Space Mono',monospace;font-size:9px;cursor:pointer;transition:opacity .15s;letter-spacing:.04em;white-space:nowrap;}
+.btn:disabled{opacity:.4;cursor:not-allowed;}
+.btn:hover:not(:disabled){opacity:.75;}
+.bsm{padding:2px 6px;font-size:8px;}
+.bghost{padding:3px 7px;background:none;border:1px solid #a89870;font-family:'Space Mono',monospace;font-size:8.5px;color:#5a4a28;cursor:pointer;transition:background .12s;}
+.bghost:hover{background:rgba(0,0,0,.08);}
+.bgreen{background:#1a4a1a;}
+.bred{background:#4a1818;}
+
+/* ── TAG BUTTONS ── */
+.tbtn{display:inline-flex;align-items:center;gap:3px;padding:2px 6px;border:1.5px solid;cursor:pointer;font-family:'Space Mono',monospace;font-size:8px;font-weight:700;letter-spacing:.05em;transition:opacity .12s,transform .1s;white-space:nowrap;}
+.tbtn:hover:not(:disabled){opacity:.76;transform:translateY(-1px);}
+.tbtn:disabled{cursor:default;opacity:.28;}
+
+/* ── WORD CHIPS IN CLUE ── */
+.wchip{display:inline;padding:1px 2px;cursor:pointer;border-bottom:2px solid transparent;font-size:16px;font-family:'Crimson Pro',serif;transition:background .1s,box-shadow .1s;line-height:1.9;user-select:none;}
+.wchip:hover{background:rgba(0,0,0,.08)!important;}
+.wchip.sel{box-shadow:0 0 0 2px #C8830A;}
+
+/* ── TABS ── */
+.tabs{border-bottom:1.5px solid #1a1008;display:flex;}
+.tab{padding:4px 11px;background:none;border:none;border-bottom:3px solid transparent;margin-bottom:-1.5px;cursor:pointer;font-family:'Playfair Display',serif;font-size:12px;color:#8a7a50;transition:color .18s,border-color .18s;white-space:nowrap;}
+.tab.on{color:#1a1008;border-bottom-color:#1a1008;}
+
+/* ── CHIPS ── */
+.chip{display:inline-block;padding:2px 6px;margin:2px;background:#d8d0b8;border:1px solid #b8a880;font-family:'Space Mono',monospace;font-size:10px;cursor:pointer;transition:background .12s;}
+.chip:hover{background:#c8c0a8;}
+.chipb{background:#d0dff8;border-color:#98b0e0;color:#0a1e60;}
+.chipb:hover{background:#c0d0f0;}
+.chipg{background:#c8e8d0;border-color:#70a880;color:#1a4020;}
+.chipg:hover{background:#b0d8c0;}
+
+/* ── PILLS ── */
+.pill{display:inline-block;padding:1px 6px;border-radius:100px;font-family:'Space Mono',monospace;font-size:9px;font-weight:700;margin:1px;border:1.5px solid;letter-spacing:.03em;}
+
+/* ── SAVED CLUE ROWS ── */
+.scrow{display:flex;align-items:center;gap:4px;padding:3px 6px;background:rgba(255,250,235,.8);border:1px solid #b8a870;border-left:3px solid #b8a870;cursor:pointer;transition:all .12s;margin-bottom:2px;}
+.scrow:hover{background:#ede0c0;border-left-color:#C8830A;}
+.scrow.selrow{background:#fdeec0;border-left-color:#C8830A;border-color:#C8830A;}
+.scrow.placed{border-left-color:#3a7a3a;}
+.scans{font-weight:700;font-size:11px;letter-spacing:.05em;flex-shrink:0;font-family:'Space Mono',monospace;}
+.scnote{font-size:8px;color:#8a7a50;flex-shrink:0;font-family:'Space Mono',monospace;}
+.scclue{font-size:9px;color:#4a3a18;flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-family:'Crimson Pro',serif;font-style:italic;}
+.scchk{color:#3a7a3a;font-size:10px;flex-shrink:0;}
+.scx{background:none;border:none;cursor:pointer;color:#b8a870;font-size:10px;padding:0 1px;line-height:1;flex-shrink:0;}
+.scx:hover{color:#7a1818;}
+
+/* ── CLUE DETAIL ── */
+.cdetail{background:rgba(255,248,220,.9);border:1px solid #d4b840;border-left:3px solid #C8830A;padding:8px 10px;margin-bottom:8px;}
+
+/* ── GRID ── */
+.xwgrid{display:inline-block;border:2px solid #1a1008;background:#1a1008;user-select:none;}
+.xwrow{display:flex;}
+.xwcell{width:26px;height:26px;background:#faf8ee;border:.5px solid #c8b880;display:flex;align-items:center;justify-content:center;font-family:'Space Mono',monospace;font-weight:700;font-size:12px;cursor:pointer;position:relative;transition:background .08s;}
+.xwcell.blk{background:#1a1008;cursor:pointer;}
+.xwcell.prev{background:#fde8a0!important;}
+.xwcell.prevbad{background:#ffc8c8!important;}
+.xwcell.rep{box-shadow:inset 0 0 0 2px #2855b0;}
+.xwcell.symorphan{background:repeating-linear-gradient(45deg,#faf8ee,#faf8ee 3px,#f0e8d8 3px,#f0e8d8 6px)!important;}
+.xwcell.symorphan:hover{background:#ede0c0!important;}
+.xwcell:not(.blk):hover{background:#ede0c0;}
+.xwnum{position:absolute;top:1px;left:1px;font-size:6.5px;font-weight:700;color:#555;font-family:'Space Mono',monospace;line-height:1;}
+.xwcell.blk .xwnum{color:transparent;}
+.xwwrap{overflow:auto;max-width:100%;padding:2px;}
+
+/* ── MODE BANNER ── */
+.mbanner{padding:5px 8px;border:1px solid;font-family:'Space Mono',monospace;font-size:8.5px;letter-spacing:.03em;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap;}
+.mb-place{background:#fdeec0;border-color:#c8a830;color:#4a3000;}
+.mb-sug{background:#c8dcf8;border-color:#90a8d8;color:#0a1860;}
+.mb-def{background:#e8e0cc;border-color:#b8a870;color:#4a3a18;}
+
+/* ── MSG ── */
+.gmsg{padding:4px 8px;margin-bottom:6px;font-family:'Space Mono',monospace;font-size:9px;}
+.gmsg.err{background:#ffe0e0;border:1px solid #c07070;color:#5a1010;}
+.gmsg.ok{background:#d8ecd8;border:1px solid #78a878;color:#1a4018;}
+
+/* ── MODAL ── */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:500;display:flex;align-items:center;justify-content:center;}
+.modal{background:#f0e8d0;border:2px solid #1a1008;padding:20px;max-width:460px;width:90%;max-height:80vh;overflow-y:auto;}
+.modal h2{font-family:'Playfair Display',serif;font-size:19px;font-weight:900;margin-bottom:11px;border-bottom:2px solid #1a1008;padding-bottom:5px;}
+.mopt{border:1px solid #b8a870;padding:9px 11px;margin-bottom:6px;cursor:pointer;transition:background .12s;background:rgba(255,252,238,.8);}
+.mopt:hover{background:#e8d8a8;}
+.mopt h3{font-family:'Playfair Display',serif;font-size:14px;font-weight:700;margin-bottom:2px;}
+.mopt p{font-size:11px;color:#4a3a18;}
+
+/* ── SCROLLBARS ── */
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:#b0a070;}
+</style>
+</head>
+<body>
+
+<!-- THE NEWSPAPER IS THE REAL PAGE -->
+<div class="np-masthead">
+  <h1>The Cryptic Compiler</h1>
+  <div class="np-sub">Established MDCCCXCIV &nbsp;·&nbsp; The Puzzlemaker's Gazette &nbsp;·&nbsp; Vol. CXXX No. 47</div>
+  <div class="np-date">Wednesday, 22nd April 2026 &nbsp;·&nbsp; Price: One Well-Turned Clue</div>
+</div>
+
+<div class="np-body">
+
+  <!-- THE UI SPANS ALL COLUMNS -->
+  <div id="root"></div>
+
+  <!-- All articles flow below the UI -->
+  <hr class="np-rule thick">
+
+  <div class="np-art">
+    <div class="np-hed big">Local Man Solves Own Crossword, Immediately Forgets How</div>
+    <div class="np-byline">By Our Puzzles Correspondent &middot; Upper Bogsworth</div>
+    <p class="np-dropcap">Mr. Reginald Forthwright, 54, of Upper Bogsworth, completed what he described as a "fiendishly difficult" cryptic crossword on Tuesday morning before realising, some forty minutes later, that he had constructed the puzzle himself some three years prior. "The clue for seven across was particularly devious," he told reporters, adding that he had "no memory whatsoever" of writing it.</p>
+    <p>His wife, Margaret, expressed no surprise. The puzzle featured eighteen interlocking anagrams, a hidden word running obliquely through four answers, and an unexplained reference to the Schleswig-Holstein Question that neither Mr. Forthwright nor any of the assembled judges could fully account for.</p>
+  </div>
+  <hr class="np-rule">
+
+  <div class="np-art">
+    <div class="np-hed">Thesaurus Found Guilty of Harbouring Synonyms Without a Licence</div>
+    <div class="np-byline">Court Correspondent &middot; Central Criminal Courts</div>
+    <p class="np-dropcap">In a landmark ruling, Messrs. Roget &amp; Son were found to have knowingly concealed upward of forty-seven near-synonyms for "melancholy" within a single entry, without adequate warning to the reader. The defence argued that such clustering was standard industry practice since 1852.</p>
+    <p>The prosecution countered that no reasonable reader seeking a synonym for "sad" required a forty-seven-count indictment. The judge delivered a verdict of considerable ambivalence.</p>
+  </div>
+  <hr class="np-rule">
+
+  <div class="np-art">
+    <div class="np-hed">Cryptic Indicator Found Living Double Life as Ordinary Word</div>
+    <div class="np-byline">Language Desk</div>
+    <p class="np-dropcap">Investigations have revealed that the word "broken," long considered a reliable anagram indicator, has been simultaneously maintaining a perfectly respectable existence as an ordinary English adjective. Several observers noted that "wild," "mad," "drunk," and "out" were all living similarly secret double lives and had been doing so for centuries without complaint from the public.</p>
+  </div>
+  <hr class="np-rule">
+
+  <div class="np-art">
+    <div class="np-hed">Setter Hospitalised After Clue Becomes Self-Referential</div>
+    <div class="np-byline">Medical Correspondent &middot; Grand Metropolitan Hospital</div>
+    <p class="np-dropcap">The celebrated setter known as "Torquemada Junior" has been admitted in a state of acute logical recursion after one of his clues began, without warning, referring to itself. The clue, for a nine-letter word, read: "Indication that the answer is, in fact, this very clue, rearranged (9)."</p>
+    <p>Doctors described the condition as rare but not unknown among setters of great ambition. "The prognosis depends on whether the patient can accept that some clues simply do not resolve," said Dr. Fenwick.</p>
+  </div>
+  <hr class="np-rule">
+
+  <div class="np-art">
+    <div class="np-hed">Nation Divided Over Whether "Eel" Is Fair Game for a Three-Letter Answer</div>
+    <div class="np-byline">Political Editor &middot; Westminster</div>
+    <p class="np-dropcap">Parliament descended into disorder on Wednesday following the publication of a crossword using "eel" as the answer to a three-letter clue defined only as "slippery customer." The opposition called the clue "an affront to the dignity of the House."</p>
+    <p>A compromise motion was defeated after it emerged the motion's sponsor had himself used "ide" in a charity puzzle the previous Christmas. The Prime Minister declined to comment, citing the sub judice rule in a manner legal observers described as technically incorrect.</p>
+  </div>
+  <hr class="np-rule">
+
+  <div class="np-art">
+    <div class="np-hed">Setter's Grid Declared UNESCO World Heritage Site</div>
+    <div class="np-byline">Arts &amp; Culture &middot; Geneva</div>
+    <p class="np-dropcap">A fifteen-by-fifteen grid compiled over eleven years by retired librarian Dorothea Blythe of Nether Pendleton has been declared a World Heritage Site by an international committee of cruciverbalists. The grid features 214 interlocking answers themed around the complete works of Anthony Trollope.</p>
+    <p>Ms. Blythe said she was "rather pleased" but noted that the clue for fourteen down had never quite satisfied her and she planned to revise it at the earliest opportunity. UNESCO confirmed this would not affect the site's protected status.</p>
+  </div>
+  <hr class="np-rule">
+
+  <div class="np-art">
+    <div class="np-hed">Man Completes Prize Cryptic in Record Time; Wife Remains Unconvinced</div>
+    <div class="np-byline">Home Affairs &middot; Sutton Coldfield</div>
+    <p class="np-dropcap">Gerald Pickwick, 47, completed Tuesday's prize cryptic in four minutes and twelve seconds, prompting immediate suspicion from his wife Hilda, who noted he had previously required three days and two library visits to complete a standard wordsearch.</p>
+    <p>An independent inquiry found no direct evidence of impropriety but noted that several entries had been written in a different pen and that ANTIDISESTABLISHMENTARIANISM had been misspelled in a manner consistent with extreme haste.</p>
+  </div>
+  <hr class="np-rule">
+
+  <div class="np-art">
+    <div class="np-hed">Annual Cryptic Convention Ends in Moderate Confusion and High Spirits</div>
+    <div class="np-byline">Correspondent at Large &middot; Bournemouth</div>
+    <p class="np-dropcap">The forty-third annual gathering of the Guild of Cryptic Setters concluded Sunday in a spirit delegates described as "productive ambiguity." Highlights included a heated panel on using "drunk" as both an anagram indicator and a definition simultaneously.</p>
+    <p>The competitive solving session was won by a solver who then disputed four answers on grounds they were technically proper nouns. The award for Most Ambitious Clue went to a seventeen-word entry for the answer "E," which the setter declined to explain.</p>
+  </div>
+  <hr class="np-rule">
+
+  <div class="np-art">
+    <div class="np-hed">Crossword Editor Vows Never to Use "Iamb" for Third Year Running</div>
+    <div class="np-byline">Publishing News</div>
+    <p class="np-dropcap">The crossword editor of a leading Sunday supplement issued a public apology for the third consecutive year's inclusion of the word "iamb" in the prize cryptic, describing the repetition as "entirely unintentional and somewhat difficult to explain to the board."</p>
+    <p>A full audit has been commissioned. Early findings suggest that "etui," "aloe," "naevi," and "ori" are appearing with a frequency that cannot be accounted for by chance. The editor has pledged to reduce the publication's dependence on four-letter words with unusual vowel distributions, a commitment crossword editors have been making since approximately 1922.</p>
+  </div>
+
+</div>
+
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script type="text/babel" data-presets="react">
+const {useState,useEffect,useMemo} = React;
+
+/* TAGS */
+const TAGS=[
+  {id:"definition",label:"Definition",  short:"DEF",tc:"#6B4500",bg:"#FEF0CC",bd:"#C8830A"},
+  {id:"fodder",    label:"Fodder",      short:"FOD",tc:"#1A5020",bg:"#E6F5E0",bd:"#4A8A35"},
+  {id:"anagram",   label:"Anagram ind.",short:"ANA",tc:"#3A1880",bg:"#EDE8FF",bd:"#7050C0"},
+  {id:"indicator", label:"Indicator",   short:"IND",tc:"#0A2860",bg:"#DDE8FF",bd:"#2855B0"},
+  {id:"sub",       label:"Substitution",short:"SUB",tc:"#5A2060",bg:"#F8E8FF",bd:"#A050C0"},
+  {id:"homophone", label:"Homophone",   short:"HOM",tc:"#5A1A00",bg:"#FFE4D6",bd:"#C04820"},
+  {id:"wordplay",  label:"Wordplay",    short:"WP", tc:"#1A3A50",bg:"#E0F0F8",bd:"#3080A0"},
+  {id:"linking",   label:"Link word",   short:"LNK",tc:"#505050",bg:"#EDECE8",bd:"#999990"},
+  {id:"double",    label:"Double def.", short:"DBL",tc:"#1A4A20",bg:"#E0FFE8",bd:"#2A8040"},
+];
+const TMAP=Object.fromEntries(TAGS.map(t=>[t.id,t]));
+
+const INDS={
+  anagram:{label:"Anagram",desc:"Letters rearranged",words:["broken","wild","crazy","drunk","mixed","confused","scrambled","tossed","strange","odd","weird","peculiar","mad","upset","sick","poor","twisted","muddled","disguised","disordered","loose","unusual","silly","warped","devastated","dancing","stirring","cooked","baked","fried","new","fresh","different","altered","changed","modified","arranged","shuffled","rearranged","transformed","bad","awful","terrible","dreadful","rotten","sorry","poorly","ill","perhaps","possibly","maybe","out","off","wrong","amiss","damaged","ruined","shattered","smashed","erratic","wayward","bent","crooked","deranged","agitated","restless","unsettled"]},
+  reversal:{label:"Reversal",desc:"Letters go backwards",words:["back","backwards","reversed","returning","returns","retreating","rebounds","overturned","turned","inverted","recalled","sent back","thrown back","turnabout","reflected","going west","westbound","rising","climbing"]},
+  container:{label:"Container",desc:"One element inside another",words:["in","within","inside","outside","around","about","holding","contains","having","eating","swallowing","surrounding","surrounds","admits","entering","sheltering","embracing","hugging","wraps","encloses","protecting","gripping","captures","grabs","pocketing","houses","takes in","devours","invades","penetrates","fills"]},
+  hidden:{label:"Hidden",desc:"Answer hidden in fodder",words:["in","within","part of","some","hiding","hidden in","buried in","contained in","hides","conceals","held by","piece of","bit of","seen in","found in","appears in","shown in","sample of","segment of","harbours","masks","includes","nestled in","lurking in","embedded in","portion of"]},
+  deletion:{label:"Deletion",desc:"Letter(s) removed",words:["without","lacking","missing","no","not","losing","loses","drop","dropped","remove","removed","less","shy","endless","topless","headless","tailless","beheaded","decapitated","curtailed","docked","trimmed","truncated","shortened","empty","hollow","gutted","heartless","coreless","sans","minus","cut","chopped","pruned","abandoned","deprived"]},
+  first:{label:"First letters",desc:"Take first letter(s)",words:["first","initial","initially","head","heads","starts","beginning","leading","top","tips","start","lead","opens","openers","primarily","principally","at first","upfront","originally","origins","launch","fronts"]},
+  last:{label:"Last letters",desc:"Take last letter(s)",words:["end","ends","tail","tails","bottom","finally","last","ultimately","closing","extremity","conclusion","finish","rear","behind","ending","terminates"]},
+  homophone:{label:"Homophone",desc:"Answer sounds like another",words:["sounds like","heard","reportedly","reported","said","it is said","spoken","speaking","audibly","aloud","out loud","for listeners","on the radio","by ear","pronounced","announced","declared","voiced","orally","on air","broadcast"]},
+  middle:{label:"Middle",desc:"Take middle letter(s)",words:["heart","heart of","centre","center","middle","middle of","core","core of","inside","innards","guts","pith","kernel","nucleus","midst","belly of","meat of"]},
+  alternate:{label:"Alternates",desc:"Every other letter",words:["alternately","alternate","every other","every second","odd letters","even letters","odds","evens","oddly","evenly","at intervals","regularly","intermittently"]},
+  charade:{label:"Charade",desc:"Pieces joined in sequence",words:["with","and","on","beside","by","following","after","before","next to","against","joined by","plus","added to","then","precedes","ahead of"]},
+};
+const INDREV=(()=>{
+  const m={};
+  for(const[cat,d]of Object.entries(INDS)){
+    for(const w of d.words){
+      const k=w.toLowerCase();
+      if(!m[k])m[k]=[];
+      m[k].push(cat);
+    }
+  }
+  return m;
+})();
+
+/* UTILS */
+function strip(s){return s.toUpperCase().replace(/[^A-Z]/g,"");}
+function notation(raw){
+  if(!raw.trim())return"";
+  const up=raw.toUpperCase();
+  if(/[\s-]/.test(up)){
+    const hasDash=up.includes("-");
+    const sep=hasDash?"-":","
+    const parts=up.split(/[\s-]+/).map(p=>p.replace(/[^A-Z]/g,"").length).filter(Boolean);
+    return"("+parts.join(sep)+")";
+  }
+  const n=up.replace(/[^A-Z]/g,"").length;
+  return n?"("+n+")":"";
+}
+function tokenise(clue){
+  const toks=[];let wi=0;
+  for(const t of clue.split(/(\s+)/)){
+    if(/^\s+$/.test(t))toks.push({text:t,isWord:false,wi:null});
+    else if(t.length)toks.push({text:t,isWord:true,wi:wi++});
+  }
+  return toks;
+}
+async function dm(p){
+  const r=await fetch("https://api.datamuse.com/words?"+new URLSearchParams(p));
+  if(!r.ok)throw new Error("dm");
+  return r.json();
+}
+function lsGet(k,fb){try{const v=localStorage.getItem(k);return v?JSON.parse(v):fb;}catch{return fb;}}
+function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch{}}
+
+// Cryptic crossword conventions reference
+const CONVENTIONS=[
+  {
+    symbol:"?",
+    name:"Question mark",
+    meaning:"Cryptic or stretched definition",
+    detail:"The definition is being used loosely, metaphorically, or in a playful/stretched sense. The solver should not expect a literal dictionary match. Often appears after a whimsical or punning definition.",
+    examples:["\"Head of state? (6)\" -- BONNET (head=bonnet, worn on a state/car, wordplay on both meanings)","\"Continental breakfast? (6)\" -- EUROPE (continental = European, breakfast = fast from the continent)"],
+  },
+  {
+    symbol:"!",
+    name:"Exclamation mark",
+    meaning:"All-in-one / &lit clue",
+    detail:"The entire clue simultaneously serves as both the definition AND the wordplay. Every word does double duty. The exclamation mark signals that the whole surface reading is the definition -- there is no separate definition part. Also called a 'semi-&lit' when only part of the clue is the definition.",
+    examples:["\"Sweetheart, endlessly passionate! (5)\" -- LOVER (whole clue = definition of lover, wordplay = lo[ve]r)","\"One creating trouble regularly (7)\" -- STIRRER (one who stirs = troublemaker; regularly = alternate letters of StIrReR)"],
+  },
+  {
+    symbol:"?!",
+    name:"Question mark + exclamation mark",
+    meaning:"Whimsical &lit clue",
+    detail:"Combines both conventions: the whole clue is the definition AND the definition is being used in a stretched or humorous way. The setter is flagging that the surface reading is simultaneously the wordplay and a slightly tongue-in-cheek definition.",
+    examples:["\"Mad doctor's creation?! (7)\" -- MONSTER (anagram of DOCTORS minus D... with the whole surface reading as a jokey definition)"],
+  },
+  {
+    symbol:"(Setter's name)",
+    name:"Named setter / house style",
+    meaning:"Each publication and setter has conventions",
+    detail:"Broadsheets (Times, Guardian, Telegraph, Spectator, FT, Independent) each have house rules on what indicators and liberties are acceptable. Some setters (Araucaria, Azed, Ximenean vs Libertarian) take very different approaches to how strictly wordplay must parse.",
+    examples:["Ximenean: strict -- every letter must be accounted for by wordplay","Libertarian (e.g. Araucaria): looser -- surface reading and cleverness valued over strict parsing"],
+  },
+  {
+    symbol:"(5-3)",
+    name:"Hyphenated answer notation",
+    meaning:"Hyphenated compound word",
+    detail:"A hyphen in the letter count means the answer is a hyphenated word or phrase. A comma means separate words. Both are placed in parentheses at the end of the clue.",
+    examples:["(5-3) = well-worn","(3,4) = sea legs","(4,2,3,5) = Lady of the Lake"],
+  },
+  {
+    symbol:"See X",
+    name:"Cross-reference clue",
+    meaning:"Answer depends on another clue's answer",
+    detail:"The clue cannot be solved in isolation -- it requires the answer to a referenced clue. Common in themed puzzles where several entries share a theme or where an answer spans multiple grid entries.",
+    examples:["\"With 14 across, classic duo (6,6)\" = LAUREL / HARDY","\"See 3 down (4)\" = depends entirely on 3 down's answer"],
+  },
+  {
+    symbol:"Two definitions",
+    name:"Double definition (DD)",
+    meaning:"Two separate definitions, no wordplay",
+    detail:"The clue consists of exactly two definitions of the same answer, placed adjacently. No wordplay indicator is needed. Often the definitions are from very different domains, which makes the surface reading feel coherent while the two meanings diverge sharply.",
+    examples:["\"Vessel carrying alcohol (5)\" -- FLASK (vessel = container; carrying alcohol = hip flask)","\"Left in the cellar (4)\" -- PORT (left = port side; in the cellar = port wine)"],
+  },
+  {
+    symbol:"One word clue",
+    name:"Single-word double definition",
+    meaning:"Two meanings packed into one word",
+    detail:"Very short clues (one or two words) often signal a double definition where both words are definitions. The solver must find a single answer word that satisfies both.",
+    examples:["\"Wound\" (6) -- SPRING (wound = past tense of wind; spring = coiled spring)","\"Trim\" (4) -- CLIP (trim hair = clip; clip = trim)"],
+  },
+  {
+    symbol:"abbr. / Abbreviation",
+    name:"Abbreviation indicators",
+    meaning:"Part of the answer is abbreviated",
+    detail:"Words like 'briefly', 'in short', 'curtailed', 'abbreviated', or domain references ('medically', 'in the army') signal that a word in the clue contributes its abbreviation to the answer rather than its full form.",
+    examples:["\"Doctor briefly\" -> DR","\"Saint, briefly\" -> ST","\"Albert briefly\" -> AL"],
+  },
+  {
+    symbol:"Foreign language",
+    name:"Foreign word indicator",
+    meaning:"A word from another language contributes to the answer",
+    detail:"Words like 'in French', 'German', 'Spanish for', 'say in Italian' indicate that the solver should use the foreign-language equivalent. Common: French 'le/la/les/un/une/des', German 'ein/der/das', Spanish 'el/los'.",
+    examples:["\"The French river (5)\" -- LESEINE (LE + SEINE)","\"One in German city (6)\" -- EINDHOVEN (EIN + DHOVEN)"],
+  },
+];
+
+
+// Returns null if single-segment (no commas), or array of lengths if multi
+function parseSegments(note){
+  const m=note.match(/^\(([^)]+)\)$/);
+  if(!m)return null;
+  const inner=m[1];
+  // multi-word with commas only (hyphens are within a single answer, not separate grid entries)
+  if(!inner.includes(","))return null;
+  const parts=inner.split(",").map(s=>parseInt(s.trim())).filter(n=>!isNaN(n)&&n>0);
+  if(parts.length<2)return null;
+  return parts;
+}
+
+
+function buildInteractive(saved,places,gs,mb,cells,nums){
+  const TAGDEFS=[
+    {id:"definition",label:"Definition",  tc:"#6B4500",bg:"#FEF0CC",bd:"#C8830A"},
+    {id:"fodder",    label:"Fodder",      tc:"#1A5020",bg:"#E6F5E0",bd:"#4A8A35"},
+    {id:"anagram",   label:"Anagram ind.",tc:"#3A1880",bg:"#EDE8FF",bd:"#7050C0"},
+    {id:"indicator", label:"Indicator",   tc:"#0A2860",bg:"#DDE8FF",bd:"#2855B0"},
+    {id:"sub",       label:"Substitution",tc:"#5A2060",bg:"#F8E8FF",bd:"#A050C0"},
+    {id:"homophone", label:"Homophone",   tc:"#5A1A00",bg:"#FFE4D6",bd:"#C04820"},
+    {id:"wordplay",  label:"Wordplay",    tc:"#1A3A50",bg:"#E0F0F8",bd:"#3080A0"},
+    {id:"linking",   label:"Link word",   tc:"#505050",bg:"#EDECE8",bd:"#999990"},
+    {id:"double",    label:"Double def.", tc:"#1A4A20",bg:"#E0FFE8",bd:"#2A8040"},
+  ];
+  const TMAP=Object.fromEntries(TAGDEFS.map(t=>[t.id,t]));
+
+  function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
+
+  function annotatedHTML(clueText,annotations,note){
+    if(!annotations||!Object.keys(annotations).length)
+      return esc(clueText)+(note?" "+esc(note):"");
+    const toks=[];let wi=0;
+    for(const t of clueText.split(/(\s+)/)){
+      if(/^\s+$/.test(t)) toks.push({text:t,isWord:false,wi:null});
+      else if(t.length) toks.push({text:t,isWord:true,wi:wi++});
+    }
+    return toks.map(t=>{
+      if(!t.isWord)return t.text;
+      const tag=TMAP[annotations[t.wi]];
+      if(!tag)return esc(t.text);
+      return "<span class='atag' style='background:"+tag.bg+";color:"+tag.tc+";border-bottom:2px solid "+tag.bd+";padding:0 1px;border-radius:2px;'>"+esc(t.text)+"</span>";
+    }).join("")+(note?" "+esc(note):"");
+  }
+
+  // Build answer key
+  const key={};
+  for(const p of places){
+    for(let i=0;i<p.length;i++){
+      const r=p.dir==="h"?p.row:p.row+i;
+      const c=p.dir==="h"?p.col+i:p.col;
+      key[r+","+c]=p.answer[i];
+    }
+  }
+
+  // Black cells
+  const blacks=new Set(mb);
+  for(const p of places){
+    const fb=(r,c)=>{
+      if(r>=0&&r<gs&&c>=0&&c<gs)blacks.add(r+","+c);
+      const sr=gs-1-r,sc=gs-1-c;
+      if(sr>=0&&sr<gs&&sc>=0&&sc<gs)blacks.add(sr+","+sc);
+    };
+    if(p.dir==="h"){fb(p.row,p.col-1);fb(p.row,p.col+p.length);}
+    else{fb(p.row-1,p.col);fb(p.row+p.length,p.col);}
+  }
+
+  // Clue lists
+  const byClue={};
+  for(const p of places){if(!byClue[p.clueId])byClue[p.clueId]=[];byClue[p.clueId].push(p);}
+  const ac=[],dn=[];
+  for(const[clueId,segs] of Object.entries(byClue)){
+    segs.sort((a,b)=>(a.segIdx||0)-(b.segIdx||0));
+    const dir=segs[0].dir;
+    const sc=saved.find(s=>s.id===clueId);
+    const segNums=segs.map(p=>nums[p.row+","+p.col]).filter(Boolean);
+    if(!segNums.length)continue;
+    const txt=sc?sc.clue+" "+sc.note:segs.map(p=>p.answer).join("");
+    const ann=sc?annotatedHTML(sc.clue,sc.annotations||{},sc.note):esc(segs.map(p=>p.answer).join(""));
+    // Collect all cell keys for this clue (for strike-through tracking)
+    const cellKeys=[];
+    for(const p of segs){
+      for(let i=0;i<p.length;i++){
+        const r=p.dir==="h"?p.row:p.row+i;
+        const c=p.dir==="h"?p.col+i:p.col;
+        cellKeys.push(r+","+c);
+      }
+    }
+    (dir==="h"?ac:dn).push({num:segNums[0],numStr:segNums.join(", "),txt,ann,cells:cellKeys.join("|")});
+  }
+  ac.sort((a,b)=>a.num-b.num);dn.sort((a,b)=>a.num-b.num);
+
+  // Used tags for legend
+  const usedTagIds=new Set();
+  for(const p of places){
+    const sc=saved.find(s=>s.id===p.clueId);
+    if(sc&&sc.annotations)Object.values(sc.annotations).forEach(id=>usedTagIds.add(id));
+  }
+  const usedTags=TAGDEFS.filter(t=>usedTagIds.has(t.id));
+  const anyAnnotated=usedTags.length>0;
+
+  // Static grid HTML
+  const CSIZ=36;
+  const blackArr=[...blacks];
+  let gridRows="";
+  for(let gr=0;gr<gs;gr++){
+    gridRows+="<tr>";
+    for(let gc=0;gc<gs;gc++){
+      const gk=gr+","+gc;
+      if(blackArr.includes(gk)){
+        gridRows+="<td class='blk'></td>";
+      } else {
+        const gnm=nums[gk];
+        const nsp=gnm?"<span class='n'>"+esc(gnm)+"</span>":"";
+        gridRows+="<td>"+nsp
+          +"<input type='text' maxlength='1'"
+          +" data-r='"+gr+"' data-c='"+gc+"'"
+          +" autocomplete='off' autocorrect='off' autocapitalize='characters'"
+          +" oninput='onI(this)' onfocus='cellFocus(this)' onkeydown='onK(this,event)'"
+          +"></td>";
+      }
+    }
+    gridRows+="</tr>";
+  }
+
+  // Build combined clue list and cell→clue index maps
+  const allClues=[
+    ...ac.map((x,i)=>({...x,dir:'A',ci:i})),
+    ...dn.map((x,i)=>({...x,dir:'D',ci:ac.length+i}))
+  ];
+  const cellAC={},cellDN={};
+  for(const cl of allClues){
+    if(!cl.cells)continue;
+    for(const k of cl.cells.split('|')){
+      if(cl.dir==='A')cellAC[k]=cl.ci; else cellDN[k]=cl.ci;
+    }
+  }
+  const cellACLit="{"+Object.keys(cellAC).map(k=>'"'+k+'":'+cellAC[k]).join(",")+"}";
+  const cellDNLit="{"+Object.keys(cellDN).map(k=>'"'+k+'":'+cellDN[k]).join(",")+"}";
+  const esc2=s=>String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\r?\n/g,' ');
+  const cluesLit="["+allClues.map(cl=>
+    "{dir:'"+cl.dir+"',num:"+cl.num+",numStr:'"+esc2(String(cl.numStr||cl.num))+"',txt:'"+esc2(cl.txt||'')+"',cells:'"+esc2(cl.cells||'')+"'}"
+  ).join(",")+"]";
+
+  const mkSec=(arr,label,dir,offset)=>{
+    if(!arr||!arr.length)return"";
+    let s="<div class='cs'><h2>"+esc(label)+"</h2><ol class='cl'>";
+    for(let xi=0;xi<arr.length;xi++){
+      const x=arr[xi];const ci=offset+xi;
+      s+="<li data-ci='"+ci+"' onclick='clueClick("+ci+")'>"
+        +"<span class='cn'>"+esc((x.numStr||x.num)+dir)+"</span>"
+        +"<span class='ctxt'>"
+        +"<span class='pl'>"+esc(x.txt)+"</span>"
+        +"<span class='an' style='display:none'>"+x.ann+"</span>"
+        +"</span></li>";
+    }
+    return s+"</ol></div>";
+  };
+
+  const legHTML=anyAnnotated?usedTags.map(t=>
+    "<span style='display:inline-flex;align-items:center;gap:4px;margin:2px 8px 2px 0'>"
+    +"<span style='width:12px;height:12px;background:"+t.bg+";border:1.5px solid "+t.bd+";border-radius:2px;display:inline-block'></span>"
+    +"<span style='font-size:11px;color:"+t.tc+";font-weight:bold'>"+esc(t.label)+"</span>"
+    +"</span>"
+  ).join(""):"";
+
+  const keyLit="{"+Object.keys(key).map(k=>'"'+k+'":"'+key[k]+'"').join(",")+"}";
+
+  const scriptLines=[
+    "var KEY="+keyLit+";",
+    "var GS="+gs+",CS="+CSIZ+";",
+    "var CLUES="+cluesLit+";",
+    "var CELL_AC="+cellACLit+";",
+    "var CELL_DN="+cellDNLit+";",
+    "var activeCI=-1;",
+    "var gw=document.getElementById('gw');",
+    "var gwo=document.getElementById('gwo');",
+    "var fs=1;",
+    "function scl(s){gw.style.WebkitTransform='scale('+s+')';gw.style.transform='scale('+s+')';gwo.style.height=Math.round((GS*CS+6)*s)+'px';}",
+    "function fit(){var vw=window.innerWidth||document.documentElement.clientWidth||360;var gW=GS*CS+6;fs=gW<=vw-24?1:Math.floor((vw-24)/gW*100)/100;scl(fs);}",
+    "fit();",
+    "if(window.addEventListener){window.addEventListener('resize',fit,false);}",
+    "function gi(r,c){var a=document.getElementsByTagName('input');for(var i=0;i<a.length;i++){if(a[i].getAttribute('data-r')==r&&a[i].getAttribute('data-c')==c)return a[i];}return null;}",
+    "function getCells(ci){return CLUES[ci]&&CLUES[ci].cells?CLUES[ci].cells.split('|'):[];}",
+    "function isSolved(ci){var cells=getCells(ci);if(!cells.length)return false;for(var i=0;i<cells.length;i++){var p=cells[i].split(',');var inp=gi(p[0],p[1]);if(!inp||inp.value!==KEY[cells[i]])return false;}return true;}",
+    "function hlActive(){var tds=document.getElementById('gw').getElementsByTagName('td');for(var i=0;i<tds.length;i++){tds[i].className=tds[i].className.replace(/\\bhl\\b/g,'').trim();}if(activeCI<0)return;var cells=getCells(activeCI);for(var i=0;i<cells.length;i++){var p=cells[i].split(',');var inp=gi(p[0],p[1]);if(inp&&inp.parentNode){var cn=inp.parentNode.className;if(cn.indexOf('hl')<0)inp.parentNode.className=(cn?cn+' ':'')+'hl';}}}",
+    "function updHz(){var hz=document.getElementById('hz');if(activeCI<0||CLUES[activeCI].dir!=='D'){hz.innerHTML='';hz.style.display='none';return;}var cells=getCells(activeCI);var html='';for(var i=0;i<cells.length;i++){var p=cells[i].split(',');var inp=gi(p[0],p[1]);html+='<span class=\"hzbox\">'+(inp&&inp.value?inp.value:'')+'</span>';}hz.innerHTML=html;hz.style.display='flex';}",
+    "function updateBar(){var bt=document.getElementById('bartxt');var dt=document.getElementById('dirtog');var prev=document.querySelector('.cl li.active');if(prev)prev.className=prev.className.replace(/\\bactive\\b/g,'').trim();if(activeCI<0){bt.textContent='Tap a clue to begin';dt.style.display='none';updHz();return;}var cl=CLUES[activeCI];bt.textContent=(cl.numStr||cl.num)+(cl.dir==='A'?'A':'D')+': '+cl.txt;var li=document.querySelector('[data-ci=\"'+activeCI+'\"]');if(li){li.className=(li.className.replace(/\\bactive\\b/g,'')+' active').trim();try{li.scrollIntoView({block:'nearest'});}catch(e){li.scrollIntoView(false);}}var cells=getCells(activeCI);var hasOther=false;for(var i=0;i<cells.length;i++){var ki=cells[i];if(cl.dir==='A'?CELL_DN.hasOwnProperty(ki):CELL_AC.hasOwnProperty(ki)){hasOther=true;break;}}dt.style.display=hasOther?'':'none';dt.textContent=cl.dir==='A'?'\\u2195':'\\u2194';updHz();}",
+    "function selectClue(ci,focusK){activeCI=ci;updateBar();hlActive();var cells=getCells(ci);if(!cells.length)return;var fk=focusK||null;if(!fk){fk=cells[0];for(var i=0;i<cells.length;i++){var p=cells[i].split(',');var inp=gi(p[0],p[1]);if(inp&&!inp.value){fk=cells[i];break;}}}var fp=fk.split(',');var finp=gi(fp[0],fp[1]);if(finp)finp.focus();}",
+    "function cellFocus(el){scl(1);var r=el.getAttribute('data-r');var c=el.getAttribute('data-c');var k=r+','+c;if(activeCI>=0){var cells=getCells(activeCI);for(var i=0;i<cells.length;i++){if(cells[i]===k){updHz();return;}}}var acIdx=CELL_AC.hasOwnProperty(k)?CELL_AC[k]:-1;var dnIdx=CELL_DN.hasOwnProperty(k)?CELL_DN[k]:-1;var nci=acIdx>=0?acIdx:(dnIdx>=0?dnIdx:-1);if(nci>=0){activeCI=nci;updateBar();hlActive();updHz();}}",
+    "document.addEventListener('focusout',function(){setTimeout(function(){var ae=document.activeElement;if(!ae||!ae.getAttribute('data-r')){scl(fs);}},300);},true);",
+    "function clueClick(ci){selectClue(ci);}",
+    "function togDir(){if(activeCI<0)return;var ae=document.activeElement;var k=ae&&ae.getAttribute('data-r')?(ae.getAttribute('data-r')+','+ae.getAttribute('data-c')):getCells(activeCI)[0];var cl=CLUES[activeCI];var other=cl.dir==='A'?(CELL_DN.hasOwnProperty(k)?CELL_DN[k]:-1):(CELL_AC.hasOwnProperty(k)?CELL_AC[k]:-1);if(other>=0)selectClue(other,k);}",
+    "function nextC(){if(!CLUES.length)return;var s=activeCI<0?-1:activeCI;for(var i=1;i<=CLUES.length;i++){var idx=(s+i)%CLUES.length;if(!isSolved(idx)){selectClue(idx);return;}}selectClue((s+1+CLUES.length)%CLUES.length);}",
+    "function prevC(){if(!CLUES.length)return;var s=activeCI<0?0:activeCI;for(var i=1;i<=CLUES.length;i++){var idx=(s-i+CLUES.length)%CLUES.length;if(!isSolved(idx)){selectClue(idx);return;}}selectClue((s-1+CLUES.length)%CLUES.length);}",
+    "function onI(el){var v=el.value.replace(/[^a-zA-Z]/g,'').toUpperCase().slice(-1);el.value=v;updHz();if(!v||activeCI<0)return;var k=el.getAttribute('data-r')+','+el.getAttribute('data-c');var cells=getCells(activeCI);for(var i=0;i<cells.length-1;i++){if(cells[i]===k){var p=cells[i+1].split(',');var nx=gi(p[0],p[1]);if(nx)nx.focus();break;}}}",
+    "function onK(el,e){var r=+el.getAttribute('data-r');var c=+el.getAttribute('data-c');var k=r+','+c;if(e.key==='Backspace'&&!el.value){if(activeCI>=0){var cells=getCells(activeCI);for(var i=1;i<cells.length;i++){if(cells[i]===k){var p=cells[i-1].split(',');var pv=gi(p[0],p[1]);if(pv)pv.focus();break;}}}return;}if(e.key==='ArrowDown'){e.preventDefault();var nx=gi(r+1,c);if(nx)nx.focus();}else if(e.key==='ArrowUp'){e.preventDefault();var pv=gi(r-1,c);if(pv)pv.focus();}else if(e.key==='ArrowRight'){e.preventDefault();var nx=gi(r,c+1);if(nx)nx.focus();}else if(e.key==='ArrowLeft'){e.preventDefault();var pv=gi(r,c-1);if(pv)pv.focus();}}",
+    "function updDone(){var lis=document.getElementsByTagName('li');for(var i=0;i<lis.length;i++){var ci=lis[i].getAttribute('data-ci');if(ci===null)continue;var done=isSolved(+ci);var cn=lis[i].className;if(done&&cn.indexOf('done')<0)lis[i].className=(cn+' done').trim();else if(!done)lis[i].className=cn.replace(/\\bdone\\b/g,'').trim();}}",
+    "function chk(){var a=document.getElementsByTagName('input');var w=0,ok=0,bl=0;for(var i=0;i<a.length;i++){var el=a[i];if(!el.getAttribute('data-r'))continue;var k=el.getAttribute('data-r')+','+el.getAttribute('data-c');var ex=KEY[k];if(!ex)continue;if(!el.value){bl++;continue;}if(el.value===ex){el.className=el.className.replace('err','').trim();ok++;}else{if(el.className.indexOf('err')<0)el.className+=' err';w++;}}var msg=document.getElementById('msg');if(w)msg.textContent=w+' incorrect, '+ok+' correct'+(bl?' ('+bl+' empty)':'')+'.'  ;else if(ok)msg.textContent=bl?ok+' correct, '+bl+' empty.':'All correct!';else msg.textContent='Fill in some letters first.';updDone();}",
+    "function clrE(){var a=document.getElementsByTagName('input');for(var i=0;i<a.length;i++){if(a[i].getAttribute('data-r')&&a[i].className.indexOf('err')>=0){a[i].value='';a[i].className=a[i].className.replace('err','').trim();}}document.getElementById('msg').textContent='';}",
+    "function rv(){var a=document.getElementsByTagName('input');for(var i=0;i<a.length;i++){var k=a[i].getAttribute('data-r')+','+a[i].getAttribute('data-c');if(KEY[k]){a[i].value=KEY[k];a[i].className=a[i].className.replace('err','').trim();}}document.getElementById('msg').textContent='Revealed.';updDone();}",
+    "if(CLUES.length>0)selectClue(0);",
+  ];
+
+  if(anyAnnotated){
+    scriptLines.push(
+      "var aOn=false;",
+      "function tgA(){var pl=document.getElementsByClassName('pl');for(var i=0;i<pl.length;i++){pl[i].style.display=aOn?'':'none';}aOn=!aOn;for(var i=0;i<pl.length;i++){pl[i].style.display=aOn?'none':'';}var an=document.getElementsByClassName('an');for(var i=0;i<an.length;i++){an[i].style.display=aOn?'inline':'none';}var lg=document.getElementById('leg');if(lg){lg.style.display=aOn?'block':'none';}var ab=document.getElementById('ab');if(ab){ab.value=aOn?'Hide annotations':'Show annotations';}}"
+    );
+  }
+
+  const parts=[
+    "<!DOCTYPE html>",
+    "<html lang='en'><head>",
+    "<meta charset='UTF-8'>",
+    "<meta name='viewport' content='width=device-width,initial-scale=1,maximum-scale=5'>",
+    "<title>Cryptic Crossword</title>",
+    "<style>",
+    "*{box-sizing:border-box;margin:0;padding:0;}",
+    "body{background:#faf7f2;color:#1a1008;font-family:Georgia,serif;padding:12px 12px 100px;}",
+    "h1{font-size:20px;font-weight:900;border-bottom:3px double #1a1008;padding-bottom:5px;margin-bottom:12px;}",
+    ".ctrls{display:-webkit-flex;display:flex;-webkit-flex-wrap:wrap;flex-wrap:wrap;gap:8px;margin-bottom:10px;}",
+    ".btn{display:inline-block;padding:9px 14px;background:#1a1008;color:#faf7f2;font-family:inherit;font-size:13px;border:none;cursor:pointer;border-radius:3px;-webkit-appearance:none;touch-action:manipulation;margin:0;}",
+    "input.btn{font-family:Georgia,serif;color:#faf7f2;}",
+    ".btg{background:#1a4a20;}.bta{background:#5a3888;}",
+    "#msg{font-size:12px;color:#555;margin-bottom:10px;min-height:16px;}",
+    "#gwo{overflow:hidden;margin-bottom:14px;}",
+    "#gw{display:inline-block;border:2.5px solid #1a1008;background:#1a1008;-webkit-transform-origin:top left;transform-origin:top left;-webkit-transition:-webkit-transform .2s;transition:transform .2s;}",
+    "#gw table{border-collapse:collapse;}",
+    "#gw td{width:"+CSIZ+"px;height:"+CSIZ+"px;background:#fffdf8;border:.5px solid #c8b896;position:relative;vertical-align:top;text-align:center;}",
+    "#gw td.blk{background:#1a1008;}",
+    "#gw td.hl{background:#fef0cc;}",
+    "#gw td input{position:absolute;top:0;left:0;width:100%;height:100%;background:transparent;border:none;outline:none;text-align:center;font-family:'Courier New',Courier,monospace;font-weight:700;font-size:15px;text-transform:uppercase;color:#1a1008;padding:0;-webkit-appearance:none;border-radius:0;-webkit-user-select:auto;}",
+    "#gw td input.err{color:#cc0000;}",
+    ".n{position:absolute;top:1px;left:2px;font-size:8px;font-family:'Courier New',Courier,monospace;color:#000;font-weight:700;line-height:1;z-index:1;pointer-events:none;}",
+    ".cs{margin-bottom:16px;}",
+    ".cs h2{font-size:17px;font-weight:700;border-bottom:1.5px solid #1a1008;margin-bottom:7px;padding-bottom:3px;}",
+    ".cl{list-style:none;padding:0;}",
+    ".cl li{font-size:14px;line-height:1.65;margin-bottom:3px;display:-webkit-flex;display:flex;gap:6px;cursor:pointer;padding:2px 4px;border-left:3px solid transparent;}",
+    ".cl li:hover{background:#f0e8d4;}",
+    ".cl li.active{background:#fef0cc;border-left-color:#c8830a;}",
+    ".cl li.done .ctxt{text-decoration:line-through;opacity:0.45;}",
+    ".cn{font-family:'Courier New',Courier,monospace;font-size:11px;font-weight:700;min-width:34px;-webkit-flex-shrink:0;flex-shrink:0;color:#6a5a38;padding-top:2px;}",
+    ".ctxt{-webkit-flex:1;flex:1;}.atag{padding:0 1px;border-radius:2px;}",
+    "#cbar{position:fixed;bottom:0;left:0;right:0;background:#1a1008;z-index:100;-webkit-user-select:none;user-select:none;}",
+    "#hz{display:none;padding:6px 8px 2px;gap:4px;-webkit-justify-content:center;justify-content:center;background:#2a2010;}",
+    ".hzbox{width:28px;height:28px;background:#faf7f2;border:1px solid #c8b880;display:-webkit-inline-flex;display:inline-flex;align-items:center;-webkit-align-items:center;justify-content:center;-webkit-justify-content:center;font-family:'Courier New',Courier,monospace;font-weight:700;font-size:14px;color:#1a1008;}",
+    "#barmain{display:-webkit-flex;display:flex;align-items:center;-webkit-align-items:center;padding:6px 8px;gap:6px;}",
+    ".navbtn{background:#3a2a18;color:#faf7f2;border:none;padding:8px 14px;font-size:16px;cursor:pointer;border-radius:3px;-webkit-appearance:none;touch-action:manipulation;-webkit-flex-shrink:0;flex-shrink:0;}",
+    "#bartxt{-webkit-flex:1;flex:1;font-size:13px;color:#faf7f2;line-height:1.3;font-family:Georgia,serif;font-style:italic;}",
+    "#dirtog{background:#5a3888;}",
+    "@media print{.ctrls,#msg,#cbar{display:none;}}",
+    "</style></head><body>",
+    "<h1>Cryptic Crossword</h1>",
+    "<div class='ctrls'>",
+    "<input type='button' class='btn' value='Check' onclick='chk()'>",
+    "<input type='button' class='btn' value='Clear errors' onclick='clrE()'>",
+    "<input type='button' class='btn btg' value='Reveal' onclick='rv()'>",
+    anyAnnotated?"<input type='button' class='btn bta' id='ab' value='Show annotations' onclick='tgA()'>":"",
+    "</div>",
+    "<div id='msg'></div>",
+    anyAnnotated?"<div id='leg' style='display:none;padding:8px 12px;background:#f5f0e8;border:1px solid #d0c090;border-left:3px solid #8a6020;margin-bottom:10px'><div style='font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:#8a7a50;margin-bottom:5px'>Annotation key</div>"+legHTML+"</div>":"",
+    "<div id='gwo'><div id='gw'><table>"+gridRows+"</table></div></div>",
+    mkSec(ac,"Across","A",0),
+    mkSec(dn,"Down","D",ac.length),
+    "<div id='cbar'><div id='hz'></div><div id='barmain'><button class='navbtn' onclick='prevC()'>&#9664;</button><div id='bartxt'>Loading&#8230;</div><button id='dirtog' class='navbtn' onclick='togDir()' style='display:none'>&#x2195;</button><button class='navbtn' onclick='nextC()'>&#9654;</button></div></div>",
+    "<"+"script>",
+    scriptLines.join("\n"),
+    "<"+"/script>",
+    "</body></html>",
+  ];
+
+  return parts.join("\n");
+}
+
+/* MAIN APP */
+
+/* MAIN APP */
+function App(){
+  // Editor
+  const[answer,setAnswer]=useState("");
+  const[clue,setClue]=useState("");
+  const[anno,setAnno]=useState({});
+  const[sel,setSel]=useState(new Set());
+  const[lastSel,setLastSel]=useState(null);
+  const[activeTab,setTab]=useState("synonyms");
+  const[copied,setCopied]=useState(false);
+  const[addFlash,setAddFlash]=useState(false);
+  const[editingId,setEditingId]=useState(null); // compiler ID of clue currently in builder
+  // Lookup
+  const[synWord,setSynWord]=useState("");
+  const[synRes,setSynRes]=useState(null);
+  const[synLoad,setSynLoad]=useState(false);
+  const[pat,setPat]=useState("");
+  const[exLen,setExLen]=useState("");
+  const[searchRes,setSearchRes]=useState([]);
+  const[searching,setSearching]=useState(false);
+  const[searchDone,setSearchDone]=useState(false);
+  const[indFilter,setIndFilter]=useState("");
+  // Anagram
+  const[anaIn,setAnaIn]=useState("");
+  const[anaLen,setAnaLen]=useState("");
+  const[anaRes,setAnaRes]=useState([]);
+  const[anaPartial,setAnaPartial]=useState([]);
+  const[anaLoad,setAnaLoad]=useState(false);
+  const[anaDone,setAnaDone]=useState(false);
+  // Dictionary
+  const[dictWord,setDictWord]=useState("");
+  const[dictRes,setDictRes]=useState(null);
+  const[dictLoad,setDictLoad]=useState(false);
+  // Replace
+  const[repTarget,setRepTarget]=useState(null);
+  // Acronym finder
+  const[acroInput,setAcroInput]=useState("");
+  const[acroRes,setAcroRes]=useState(null);
+  const[acroLoad,setAcroLoad]=useState(false);
+  // Cryptic substitutions
+  const[subInput,setSubInput]=useState("");
+  const[subRes,setSubRes]=useState(null);
+  const[subLoad,setSubLoad]=useState(false);
+  // Compiler
+  const[saved,setSaved]=useState(()=>lsGet("cc_saved",[]));
+  const[gs,setGs]=useState(()=>lsGet("cc_gs",13));
+  const[places,setPlaces]=useState(()=>lsGet("cc_places",[]));
+  const[mba,setMba]=useState(()=>lsGet("cc_mb",[]));
+  const mb=useMemo(()=>new Set(mba),[mba]);
+  const setMb=fn=>setMba(prev=>{const cur=new Set(prev);const nxt=typeof fn==="function"?fn(cur):fn;return[...nxt];});
+  const[selId,setSelId]=useState(null);
+  const[selSegIdx,setSelSegIdx]=useState(0); // which segment of a multi-part clue we're placing
+  const[hov,setHov]=useState(null);
+  const[sugMode,setSugMode]=useState(false);
+  const[regA,setRegA]=useState(null);
+  const[regB,setRegB]=useState(null);
+  const[suggs,setSuggs]=useState([]);
+  const[sugLoad,setSugLoad]=useState(false);
+  const[gridMsg,setGridMsg]=useState(null);
+  const[showExp,setShowExp]=useState(false);
+  const[detail,setDetail]=useState(null);
+
+  // Persist
+  useEffect(()=>lsSet("cc_saved",saved),[saved]);
+  useEffect(()=>lsSet("cc_gs",gs),[gs]);
+  useEffect(()=>lsSet("cc_places",places),[places]);
+  useEffect(()=>lsSet("cc_mb",mba),[mba]);
+
+  // Derived editor
+  const toks=clue.trim()?tokenise(clue):[];
+  const wToks=toks.filter(t=>t.isWord);
+  const note=notation(answer);
+  const hasAnno=Object.keys(anno).length>0;
+  const usedTagIds=[...new Set(Object.values(anno))];
+
+  // Auto-fill from selection
+  useEffect(()=>{
+    if(!sel.size)return;
+    const idx=Math.min(...sel);
+    const tok=wToks.find(t=>t.wi===idx);
+    if(!tok)return;
+    const bare=tok.text.replace(/[^a-zA-Z]/g,"").toLowerCase();
+    if(bare){setSynWord(bare);setPat(bare);setDictWord(bare);}
+    setRepTarget({wi:idx,text:tok.text});
+  },[sel]);// eslint-disable-line
+
+  const handleClueChange=e=>{
+    const val=e.target.value;
+    const nw=val.trim().split(/\s+/).filter(Boolean).length;
+    const ow=clue.trim().split(/\s+/).filter(Boolean).length;
+    if(nw!==ow){setAnno({});setSel(new Set());}
+    setClue(val);
+  };
+  const toggleWord=(wi,e)=>{
+    if(e.shiftKey&&lastSel!==null){
+      const lo=Math.min(lastSel,wi),hi=Math.max(lastSel,wi);
+      setSel(prev=>{const s=new Set(prev);for(let i=lo;i<=hi;i++)s.add(i);return s;});
+    }else{
+      setSel(prev=>{const s=new Set(prev);s.has(wi)?s.delete(wi):s.add(wi);return s;});
+      setLastSel(wi);
+    }
+  };
+  const applyTag=id=>{
+    if(!sel.size)return;
+    setAnno(prev=>{
+      const next={...prev};
+      const allSame=[...sel].every(i=>next[i]===id);
+      sel.forEach(i=>allSame?delete next[i]:(next[i]=id));
+      return next;
+    });
+    setSel(new Set());
+  };
+  const remAnno=wi=>setAnno(p=>{const n={...p};delete n[wi];return n;});
+  const replaceWord=newWord=>{
+    if(!repTarget)return;
+    const result=tokenise(clue).map(t=>t.isWord&&t.wi===repTarget.wi?newWord:t.text).join("");
+    setClue(result);setSel(new Set());setRepTarget(null);
+  };
+
+  // Lookup
+  const lookupSyn=async(word)=>{
+    const w=(word||synWord).trim().toLowerCase();
+    if(!w)return;
+    setSynWord(w);setSynLoad(true);setSynRes(null);setTab("synonyms");
+    try{
+      const[syns,ml,trg]=await Promise.all([
+        dm({rel_syn:w,max:30}).catch(()=>[]),
+        dm({ml:w,max:30}).catch(()=>[]),
+        dm({rel_trg:w,max:20}).catch(()=>[]),
+      ]);
+      const ss=new Set(syns.map(x=>x.word));
+      setSynRes({word:w,syns:syns.map(x=>x.word),ml:ml.filter(x=>!ss.has(x.word)).map(x=>x.word),trg:trg.map(x=>x.word),indRoles:INDREV[w]||[]});
+    }catch{setSynRes({error:"Lookup failed."});}
+    setSynLoad(false);
+  };
+  const doSearch=async()=>{
+    if(!pat.trim())return;
+    setSearching(true);setSearchRes([]);setSearchDone(false);
+    try{
+      const data=await dm({sp:pat.trim(),max:100});
+      let words=data.map(x=>x.word);
+      if(exLen){const n=parseInt(exLen);if(!isNaN(n))words=words.filter(w=>w.replace(/[^a-zA-Z]/g,"").length===n);}
+      setSearchRes(words);
+    }catch{setSearchRes([]);}
+    setSearching(false);setSearchDone(true);
+  };
+  // Word list cache for anagram solving
+  const wordListRef=React.useRef(null);
+  const loadWordList=async()=>{
+    if(wordListRef.current)return wordListRef.current;
+    // Fetch a common English word list from a public CDN
+    // Using the dwyl english-words list — ~370k words, one per line
+    const r=await fetch("https://raw.githubusercontent.com/dwyl/english-words/master/words_alpha.txt");
+    const txt=await r.text();
+    const words=txt.split("\n").map(w=>w.trim().toLowerCase()).filter(w=>w.length>=3&&/^[a-z]+$/.test(w));
+    wordListRef.current=words;
+    return words;
+  };
+
+  const solveAnagram=async()=>{
+    const letters=anaIn.trim().toLowerCase().replace(/[^a-z]/g,"");
+    if(!letters)return;
+    setAnaLoad(true);setAnaRes([]);setAnaPartial([]);setAnaDone(false);
+    try{
+      const freq=(s)=>{const m={};for(const c of s)m[c]=(m[c]||0)+1;return m;};
+      const lf=freq(letters);
+      const fits=(w,exact)=>{
+        if(exact&&w.length!==letters.length)return false;
+        if(!exact&&(w.length<3||w.length>letters.length))return false;
+        const wf=freq(w);
+        return Object.keys(wf).every(c=>(lf[c]||0)>=wf[c]);
+      };
+
+      const words=await loadWordList();
+      const targetLen=anaLen?parseInt(anaLen):null;
+
+      const full=words.filter(w=>fits(w,true)&&(!targetLen||w.length===targetLen));
+      const partial=!anaLen?words.filter(w=>w.length<letters.length&&fits(w,false)):[];
+
+      setAnaRes(full.sort());
+      setAnaPartial(partial.sort((a,b)=>b.length-a.length).slice(0,100));
+    }catch(e){
+      console.error(e);
+      // Fallback to Datamuse prefix queries if word list fetch fails
+      try{
+        const freq=(s)=>{const m={};for(const c of s)m[c]=(m[c]||0)+1;return m;};
+        const lf=freq(letters);
+        const isAna=(w)=>{if(w.length!==letters.length)return false;const wf=freq(w);return Object.keys(wf).every(c=>(lf[c]||0)>=wf[c]);};
+        const letArr=[...new Set(letters)];
+        const queries=letArr.map(c=>dm({sp:c+"*",max:500}).catch(()=>[]));
+        const results=await Promise.all(queries);
+        const candidates=new Set(results.flat().map(x=>x.word.toLowerCase().replace(/[^a-z]/g,"")));
+        setAnaRes([...candidates].filter(isAna).sort());
+      }catch{setAnaRes([]);}
+    }
+    setAnaLoad(false);setAnaDone(true);
+  };
+
+  // ── Cryptic substitution table (static — no API needed) ──────────────────
+  const SUB_TABLE={
+    "A":  [{value:"A (note)",reason:"Musical note",ex:["\"Note found in lake\" -> A"]},{value:"Area",reason:"SI unit abbreviation",ex:["\"Measure of space\""]},{value:"Ace",reason:"Cards / tennis",ex:["\"Top card\""]},{value:"Answer",reason:"Crossword/quiz convention",ex:["\"Response (abbr.)\""]},{value:"Ampere",reason:"Physics abbreviation",ex:["\"Current measure\""]}],
+    "B":  [{value:"Black",reason:"Chess piece colour / snooker ball",ex:["\"Dark piece\""]},{value:"Born",reason:"Biographical abbreviation",ex:["\"b. 1945\""]},{value:"Note (musical)",reason:"Musical scale",ex:["\"Key note\""]},{value:"Bishop",reason:"Chess piece",ex:["\"Church figure on board\""]},{value:"Billion",reason:"Financial abbreviation",ex:["\"Big number (abbr.)\""]}],
+    "C":  [{value:"100",reason:"Roman numeral C=100",ex:["\"Century in Roman terms\""]},{value:"Caught",reason:"Cricket scoring",ex:["\"Dismissed in cricket (abbr.)\""]},{value:"Cape",reason:"Geography abbreviation",ex:["\"Headland\""]},{value:"Carbon",reason:"Chemical element symbol",ex:["\"Element 6\""]},{value:"Conservative",reason:"UK politics",ex:["\"Right-wing party (abbr.)\""]},{value:"Celsius/Centigrade",reason:"Temperature scale",ex:["\"Temperature measure\""]}],
+    "D":  [{value:"500",reason:"Roman numeral D=500",ex:["\"Five hundred in Roman\""]},{value:"Daughter",reason:"Genealogical abbreviation",ex:["\"Family member (abbr.)\""]},{value:"Died",reason:"Biographical abbreviation",ex:["\"d. 1066\""]},{value:"Penny (old)",reason:"Pre-decimal British currency (denarius)",ex:["\"Old coin\""]},{value:"Note (musical)",reason:"Musical scale",ex:["\"Scale note\""]}],
+    "DD": [{value:"Doctor of Divinity",reason:"Academic title",ex:["\"Church scholar\""]},{value:"Double definition",reason:"Crossword convention",ex:["\"Two meanings clue type\""]}],
+    "DR": [{value:"Doctor",reason:"Title abbreviation",ex:["\"Medic's title\""]},{value:"Debtor",reason:"Accounting abbreviation",ex:["\"Owes money (abbr.)\""]}],
+    "E":  [{value:"East",reason:"Cardinal direction",ex:["\"Compass point\""]},{value:"English",reason:"Nationality abbreviation",ex:["\"Home nation\""]},{value:"Energy",reason:"Physics (E=mc^2)",ex:["\"Einstein's quantity\""]},{value:"Note (musical)",reason:"Musical scale",ex:["\"Top of scale\""]}],
+    "F":  [{value:"Forte / loud",reason:"Musical dynamic marking",ex:["\"Play it loud (mus.)\""]},{value:"Female",reason:"Biology/form abbreviation",ex:["\"Sex indicator\""]},{value:"Fahrenheit",reason:"Temperature scale",ex:["\"American temperature\""]},{value:"Fellow",reason:"Academic title (FRS etc.)",ex:["\"Society member\""]}],
+    "G":  [{value:"Grand",reason:"Slang for 1000 (pounds/dollars)",ex:["\"A thousand\""]},{value:"Gravity / gravitational constant",reason:"Physics",ex:["\"Newton's force\""]},{value:"Note (musical)",reason:"Musical scale",ex:["\"Scale note\""]}],
+    "GI": [{value:"American soldier",reason:"Government Issue / US military slang",ex:["\"US trooper\"","\"Yank in uniform\""]}],
+    "H":  [{value:"Hydrogen",reason:"Chemical element symbol H",ex:["\"Lightest element\""]},{value:"Hospital",reason:"Map/sign abbreviation",ex:["\"Medical facility (abbr.)\""]},{value:"Hard (pencil)",reason:"Pencil grading",ex:["\"Firm lead\""]},{value:"Hot",reason:"Tap/pipe labelling",ex:["\"Warm tap\""]}],
+    "HM": [{value:"His/Her Majesty",reason:"Royal title abbreviation",ex:["\"The monarch\""]},{value:"Headmaster/Headmistress",reason:"School abbreviation",ex:["\"School head\""]}],
+    "I":  [{value:"One",reason:"Roman numeral I=1",ex:["\"Single in Roman\""]},{value:"Iodine",reason:"Chemical element symbol",ex:["\"Element 53\""]},{value:"Island / Isle",reason:"Geography abbreviation",ex:["\"Piece of land in sea\""]}],
+    "II": [{value:"Two",reason:"Roman numeral",ex:["\"A pair in Roman\""]}],
+    "III":[{value:"Three",reason:"Roman numeral",ex:["\"Trio in Roman\""]}],
+    "IV": [{value:"Four",reason:"Roman numeral IV=4",ex:["\"Quarter in Roman\""]},{value:"Intravenous",reason:"Medical abbreviation",ex:["\"Hospital drip\""]}],
+    "IX": [{value:"Nine",reason:"Roman numeral IX=9",ex:["\"One less than ten (Roman)\""]}],
+    "J":  [{value:"Judge",reason:"Legal abbreviation",ex:["\"Bench sitter (abbr.)\""]},{value:"Joule",reason:"Physics unit",ex:["\"Unit of energy\""]}],
+    "K":  [{value:"King",reason:"Chess piece / playing cards",ex:["\"Royal piece\""]},{value:"Knave / Jack",reason:"Old card name",ex:["\"Face card\""]},{value:"Thousand",reason:"Informal abbreviation (k)",ex:["\"A grand (informal)\""]}],
+    "L":  [{value:"50",reason:"Roman numeral L=50",ex:["\"Half a century (Roman)\""]},{value:"Left",reason:"Direction abbreviation",ex:["\"Not right\""]},{value:"Learner / L-plate",reason:"Driving learner plate",ex:["\"New driver\""]},{value:"Large",reason:"Clothing size",ex:["\"Big size\""]}],
+    "LA": [{value:"Los Angeles",reason:"City abbreviation",ex:["\"US city\""]},{value:"Louisiana",reason:"US state abbreviation",ex:["\"US state\""]}],
+    "M":  [{value:"1000",reason:"Roman numeral M=1000",ex:["\"A millennium in Roman\""]},{value:"Motorway",reason:"UK road abbreviation",ex:["\"Fast road\""]},{value:"Married",reason:"Genealogical abbreviation",ex:["\"Wed (abbr.)\""]},{value:"Metre",reason:"SI unit",ex:["\"Length measure (abbr.)\""]}],
+    "MI": [{value:"Military intelligence",reason:"Espionage abbreviation",ex:["\"Spy service\""]},{value:"MI5/MI6",reason:"UK intelligence services",ex:["\"Secret service\""]}],
+    "MP": [{value:"Member of Parliament",reason:"UK politics",ex:["\"Elected rep\""]},{value:"Military Police",reason:"Armed forces",ex:["\"Army copper\""]}],
+    "MR": [{value:"Mister",reason:"Title abbreviation",ex:["\"Male title\""]}],
+    "N":  [{value:"North",reason:"Cardinal direction",ex:["\"Compass point\""]},{value:"Knight",reason:"Chess piece (abbreviation)",ex:["\"Horse on board\""]},{value:"Nitrogen",reason:"Chemical element symbol",ex:["\"Element 7\""]}],
+    "NT": [{value:"New Testament",reason:"Biblical abbreviation",ex:["\"Scripture (NT)\""]},{value:"National Trust",reason:"UK heritage organisation",ex:["\"Property guardian (UK)\""]}],
+    "O":  [{value:"Love",reason:"Tennis scoring (zero)",ex:["\"Nil in tennis\""]},{value:"Oxygen",reason:"Chemical element symbol",ex:["\"Breathing element\""]},{value:"Nothing / zero",reason:"Shape of letter",ex:["\"Round number\""]}],
+    "OT": [{value:"Old Testament",reason:"Biblical abbreviation",ex:["\"Ancient scripture\""]},{value:"Overtime",reason:"Work/sport abbreviation",ex:["\"Extra time\""]}],
+    "P":  [{value:"Piano / soft",reason:"Musical dynamic marking",ex:["\"Play softly (mus.)\""]},{value:"Pawn",reason:"Chess piece",ex:["\"Foot soldier on board\""]},{value:"Parking",reason:"Road sign abbreviation",ex:["\"Car space\""]},{value:"Page",reason:"Reference abbreviation",ex:["\"p. 42\""]}],
+    "PM": [{value:"Prime Minister",reason:"Political title",ex:["\"Head of government\""]},{value:"Afternoon",reason:"Post meridiem",ex:["\"After noon (abbr.)\""]}],
+    "PP": [{value:"Pianissimo / very soft",reason:"Musical dynamic",ex:["\"Very quietly (mus.)\""]},{value:"Pages",reason:"Reference abbreviation",ex:["\"pp. 10-15\""]}],
+    "PR": [{value:"Public Relations",reason:"Business abbreviation",ex:["\"Spin doctor's field\""]},{value:"Puerto Rico",reason:"Territory abbreviation",ex:["\"Caribbean territory\""]}],
+    "PS": [{value:"Postscript",reason:"Letter abbreviation",ex:["\"Afterthought in letter\""]}],
+    "Q":  [{value:"Queen",reason:"Chess piece / playing cards",ex:["\"Royal piece on board\""]},{value:"Question",reason:"Abbreviation",ex:["\"Q: What is...\""]},{value:"Queue",reason:"Homophone convention",ex:["\"Line of people (sounds like)\""]}],
+    "QC": [{value:"Queen's Counsel",reason:"Legal title",ex:["\"Senior barrister\""]}],
+    "R":  [{value:"Right",reason:"Direction abbreviation",ex:["\"Not left\""]},{value:"Rex / Regina",reason:"Royal title (Latin)",ex:["\"King or queen (Latin)\""]},{value:"Rook",reason:"Chess piece",ex:["\"Castle on board\""]},{value:"River",reason:"Geography abbreviation",ex:["\"Waterway (abbr.)\""]}],
+    "RA": [{value:"Royal Academy / Royal Academician",reason:"Arts institution",ex:["\"Artist's honour\""]},{value:"Royal Artillery",reason:"Military",ex:["\"Gunners (mil.)\""]}],
+    "RE": [{value:"Royal Engineers",reason:"Military abbreviation",ex:["\"Army sappers\""]},{value:"About / regarding",reason:"Business letter abbreviation",ex:["\"Re: your letter\""]}],
+    "RN": [{value:"Royal Navy",reason:"Military abbreviation",ex:["\"Senior service\""]}],
+    "RP": [{value:"Received Pronunciation",reason:"Accent/linguistics",ex:["\"BBC accent\""]}],
+    "S":  [{value:"South",reason:"Cardinal direction",ex:["\"Compass point\""]},{value:"Saint",reason:"Ecclesiastical abbreviation",ex:["\"Holy person (abbr.)\""]},{value:"Seconds",reason:"Time abbreviation",ex:["\"Short time\""]}],
+    "SA": [{value:"South Africa",reason:"Country abbreviation",ex:["\"Rainbow nation\""]},{value:"Sex appeal / it",reason:"Crossword convention",ex:["\"Attraction\""]}],
+    "SAS":[{value:"Special Air Service",reason:"British military elite unit",ex:["\"Elite soldiers\""]}],
+    "SE": [{value:"South-east",reason:"Direction abbreviation",ex:["\"Compass point\""]}],
+    "SS": [{value:"Steamship",reason:"Nautical prefix",ex:["\"On a vessel\"","\"Aboard ship\""]},{value:"Saints",reason:"Ecclesiastical plural",ex:["\"Holy ones (abbr.)\""]},{value:"Nazi paramilitary",reason:"Historical (Schutzstaffel)",ex:["\"WWII force\""]}],
+    "ST": [{value:"Saint",reason:"Ecclesiastical abbreviation",ex:["\"Holy person\""]},{value:"Street",reason:"Address abbreviation",ex:["\"Road type\""]},{value:"Stone",reason:"Imperial weight (14 lbs)",ex:["\"British weight unit\""]}],
+    "SW": [{value:"South-west",reason:"Direction abbreviation",ex:["\"Compass point\""]}],
+    "T":  [{value:"Time",reason:"Physics abbreviation",ex:["\"Physicist's variable\""]},{value:"Tee (shape)",reason:"Letter shape",ex:["\"T-shaped thing\""]}],
+    "TA": [{value:"Territorial Army",reason:"UK military reserve",ex:["\"Weekend soldiers\""]},{value:"Thank you",reason:"Informal abbreviation",ex:["\"Gratitude\""]}],
+    "TB": [{value:"Tuberculosis",reason:"Medical abbreviation",ex:["\"Lung disease\""]}],
+    "TT": [{value:"Teetotaller",reason:"No alcohol",ex:["\"Non-drinker\""]},{value:"Tourist Trophy",reason:"Isle of Man motorcycle race",ex:["\"Manx race\""]}],
+    "U":  [{value:"Upper class / posh",reason:"Nancy Mitford U/non-U convention",ex:["\"Posh (Nancy Mitford)\""]},{value:"University",reason:"Abbreviation",ex:["\"Academic institution\""]},{value:"Uranium",reason:"Chemical element symbol",ex:["\"Radioactive element\""]}],
+    "UN": [{value:"United Nations",reason:"International organisation",ex:["\"World body\""]}],
+    "US": [{value:"United States",reason:"Country abbreviation",ex:["\"American nation\""]},{value:"American",reason:"Demonym abbreviation",ex:["\"Yankee\""]}],
+    "V":  [{value:"Five",reason:"Roman numeral V=5",ex:["\"Half of ten (Roman)\""]},{value:"Versus",reason:"Competition abbreviation",ex:["\"Against\""]},{value:"Victory",reason:"WWII V-sign",ex:["\"Churchill's gesture\""]},{value:"Volt",reason:"Physics unit",ex:["\"Electrical unit\""]},{value:"Vee (shape)",reason:"Letter shape",ex:["\"V-shaped\""]}],
+    "VI": [{value:"Six",reason:"Roman numeral VI=6",ex:["\"Half dozen (Roman)\""]}],
+    "VII":[{value:"Seven",reason:"Roman numeral VII=7",ex:["\"Lucky number (Roman)\""]}],
+    "VIII":[{value:"Eight",reason:"Roman numeral VIII=8",ex:["\"Octave (Roman)\""]}],
+    "W":  [{value:"West",reason:"Cardinal direction",ex:["\"Compass point\""]},{value:"Women's / Women",reason:"Clothing/sign abbreviation",ex:["\"Ladies' (abbr.)\""]}],
+    "WO": [{value:"Warrant Officer",reason:"Military rank",ex:["\"Senior NCO\""]}],
+    "X":  [{value:"Ten",reason:"Roman numeral X=10",ex:["\"A decade (Roman)\""]},{value:"Kiss",reason:"Letter convention",ex:["\"Affectionate sign-off\""]},{value:"Unknown / variable",reason:"Algebra convention",ex:["\"Mystery quantity\""]},{value:"Cross",reason:"Shape of letter",ex:["\"Angry / crossroads\""]}],
+    "XI": [{value:"Eleven",reason:"Roman numeral XI=11",ex:["\"A cricket team (Roman)\""]}],
+    "XL": [{value:"Forty",reason:"Roman numeral XL=40",ex:["\"Two score (Roman)\""]},{value:"Extra large",reason:"Clothing size",ex:["\"Big size\""]}],
+    "Y":  [{value:"Year",reason:"Abbreviation",ex:["\"Annual period\""]}],
+    "Z":  [{value:"Zero",reason:"Informal",ex:["\"Nought\""]},{value:"Zulu",reason:"NATO phonetic alphabet",ex:["\"NATO Z\""]}],
+    "NATO":[
+      {value:"Alpha=A",reason:"NATO phonetic alphabet",ex:["\"NATO A\""]},
+      {value:"Bravo=B",reason:"NATO phonetic alphabet",ex:["\"NATO B / well done\""]},
+      {value:"Charlie=C",reason:"NATO phonetic alphabet",ex:["\"NATO C / a fool\""]},
+      {value:"Delta=D",reason:"NATO phonetic alphabet",ex:["\"NATO D / river mouth\""]},
+      {value:"Echo=E",reason:"NATO phonetic alphabet",ex:["\"NATO E / sound reflection\""]},
+      {value:"Foxtrot=F",reason:"NATO phonetic alphabet",ex:["\"NATO F / dance\""]},
+      {value:"Golf=G",reason:"NATO phonetic alphabet",ex:["\"NATO G / sport\""]},
+      {value:"Hotel=H",reason:"NATO phonetic alphabet",ex:["\"NATO H / accommodation\""]},
+      {value:"India=I",reason:"NATO phonetic alphabet",ex:["\"NATO I / subcontinent\""]},
+      {value:"Juliet=J",reason:"NATO phonetic alphabet",ex:["\"NATO J / Shakespeare heroine\""]},
+      {value:"Kilo=K",reason:"NATO phonetic alphabet",ex:["\"NATO K / thousand\""]},
+      {value:"Lima=L",reason:"NATO phonetic alphabet",ex:["\"NATO L / Peruvian capital\""]},
+      {value:"Mike=M",reason:"NATO phonetic alphabet",ex:["\"NATO M / man's name\""]},
+      {value:"November=N",reason:"NATO phonetic alphabet",ex:["\"NATO N / autumn month\""]},
+      {value:"Oscar=O",reason:"NATO phonetic alphabet",ex:["\"NATO O / film award\""]},
+      {value:"Papa=P",reason:"NATO phonetic alphabet",ex:["\"NATO P / father\""]},
+      {value:"Quebec=Q",reason:"NATO phonetic alphabet",ex:["\"NATO Q / Canadian province\""]},
+      {value:"Romeo=R",reason:"NATO phonetic alphabet",ex:["\"NATO R / Shakespeare hero\""]},
+      {value:"Sierra=S",reason:"NATO phonetic alphabet",ex:["\"NATO S / mountain range\""]},
+      {value:"Tango=T",reason:"NATO phonetic alphabet",ex:["\"NATO T / dance\""]},
+      {value:"Uniform=U",reason:"NATO phonetic alphabet",ex:["\"NATO U / outfit\""]},
+      {value:"Victor=V",reason:"NATO phonetic alphabet",ex:["\"NATO V / winner\""]},
+      {value:"Whiskey=W",reason:"NATO phonetic alphabet",ex:["\"NATO W / spirit\""]},
+      {value:"X-ray=X",reason:"NATO phonetic alphabet",ex:["\"NATO X / scan\""]},
+      {value:"Yankee=Y",reason:"NATO phonetic alphabet",ex:["\"NATO Y / American\""]},
+      {value:"Zulu=Z",reason:"NATO phonetic alphabet",ex:["\"NATO Z / South African people\""]}
+    ],
+  };
+
+  // ── Acronym table (static — common cryptic crossword acronyms) ────────────
+  const ACRO_TABLE={
+    "AA":["Automobile Association (UK motoring)","Alcoholics Anonymous (support group)","Anti-Aircraft (military)","Architectural Association (UK)"],
+    "AB":["Able-Bodied seaman (naval rank)","Artium Baccalaureus / Bachelor of Arts (academic)"],
+    "ABC":["Alphabet (as in 'easy as ABC')","American Broadcasting Company","Australian Broadcasting Corporation"],
+    "AC":["Alternating Current (electricity)","Air Conditioning","Account (finance)"],
+    "AGM":["Annual General Meeting (corporate)","Air-to-Ground Missile (military)"],
+    "AI":["Artificial Intelligence (computing)","Amnesty International"],
+    "AID":["Agency for International Development","Help / assistance"],
+    "AKA":["Also Known As"],
+    "AM":["Ante Meridiem / morning","Amplitude Modulation (radio)","Member of the Order of Australia"],
+    "ASAP":["As Soon As Possible"],
+    "BA":["Bachelor of Arts (degree)","British Airways","Buenos Aires (city)"],
+    "BB":["Boys' Brigade","Brigitte Bardot (actress)","BB gun (airgun)"],
+    "BBC":["British Broadcasting Corporation"],
+    "BC":["Before Christ (dating)","British Columbia (Canadian province)","Borough Council"],
+    "BEd":["Bachelor of Education (degree)"],
+    "BM":["Bachelor of Medicine","British Museum","Bowel Movement (medical)"],
+    "BP":["British Petroleum (company)","Blood Pressure (medical)","Before Present (dating)"],
+    "BS":["Bachelor of Science","Building Society","Nonsense (informal)"],
+    "BSc":["Bachelor of Science (degree)"],
+    "BT":["British Telecom","Baronet (title)"],
+    "CA":["Chartered Accountant","California (US state)","Canada (country code)"],
+    "CB":["Citizens' Band (radio)","Commander of the Bath (honour)","Cricket Board"],
+    "CBE":["Commander of the Order of the British Empire (honour)"],
+    "CC":["County Council","Cricket Club","Carbon Copy (email)","Cubic Centimetres"],
+    "CD":["Compact Disc","Corps Diplomatique (diplomatic plates)","Civil Defence"],
+    "CEO":["Chief Executive Officer"],
+    "CF":["Cystic Fibrosis (medical)","Compare (Latin: confer)"],
+    "CID":["Criminal Investigation Department (police)"],
+    "CIO":["Chief Information Officer","Congress of Industrial Organizations"],
+    "CO":["Commanding Officer (military)","Colorado (US state)","Company","Carbon Monoxide"],
+    "COD":["Cash On Delivery","Codfish (fish)"],
+    "CV":["Curriculum Vitae","Cheval Vapeur (horsepower)"],
+    "DA":["District Attorney (US legal)","Duck's Arse (hairstyle)"],
+    "DC":["Direct Current (electricity)","District of Columbia","Detective Constable"],
+    "DI":["Detective Inspector (police rank)","Di (Princess Diana, informal)"],
+    "DIY":["Do It Yourself"],
+    "DJ":["Disc Jockey","Dinner Jacket"],
+    "DM":["Doctor of Medicine","Direct Message","Deutsche Mark (old German currency)"],
+    "DNA":["Deoxyribonucleic Acid (genetics)"],
+    "DOA":["Dead On Arrival (medical/legal)"],
+    "DSO":["Distinguished Service Order (military honour)"],
+    "DT":["Delirium Tremens (medical)","Detective"],
+    "EC":["European Community","East Central (London postcode area)"],
+    "ED":["Editor","Education","Edward (man's name)"],
+    "EEC":["European Economic Community (old name for EU)"],
+    "EG":["For example (Latin: exempli gratia)"],
+    "EM":["Electromotive force (physics)","Emily/Emma (name)"],
+    "EMU":["Economic and Monetary Union (EU)","Emu (large bird)"],
+    "ET":["Extra-Terrestrial","Et (Latin: and)"],
+    "EU":["European Union"],
+    "FA":["Football Association (UK)","Fanny Adams / nothing (informal)"],
+    "FBI":["Federal Bureau of Investigation (US)"],
+    "FC":["Football Club"],
+    "FIFA":["Federation Internationale de Football Association"],
+    "FM":["Field Marshal (military rank)","Frequency Modulation (radio)"],
+    "FO":["Foreign Office (UK)","Flying Officer"],
+    "GP":["General Practitioner (doctor)","Grand Prix","Grand Piano"],
+    "HE":["His Excellency","High Explosive","He (pronoun used as title)"],
+    "HIV":["Human Immunodeficiency Virus"],
+    "HQ":["Headquarters"],
+    "HR":["Human Resources","Hour"],
+    "HMS":["His/Her Majesty's Ship (Royal Navy prefix)"],
+    "HRH":["His/Her Royal Highness"],
+    "IC":["In charge","Integrated Circuit"],
+    "ID":["Identity / Identification","Idaho (US state)"],
+    "IE":["That is (Latin: id est)"],
+    "IOU":["I Owe You (debt acknowledgement)"],
+    "IRA":["Irish Republican Army","Individual Retirement Account (US)"],
+    "IT":["Information Technology","Italian (in crosswords)"],
+    "JP":["Justice of the Peace"],
+    "KO":["Knock-Out (boxing)"],
+    "LA":["Los Angeles","Louisiana","La (musical note)"],
+    "LC":["Lower case","Lord Chancellor"],
+    "LCD":["Liquid Crystal Display","Lowest Common Denominator"],
+    "LED":["Light-Emitting Diode"],
+    "LLB":["Bachelor of Laws (degree)"],
+    "LSD":["Lysergic acid diethylamide (drug)","Pounds, Shillings and Pence (old currency)"],
+    "MA":["Master of Arts (degree)","Massachusetts (US state)","Mama / mother (informal)"],
+    "MBA":["Master of Business Administration"],
+    "MBE":["Member of the Order of the British Empire"],
+    "MD":["Doctor of Medicine","Managing Director"],
+    "MEP":["Member of the European Parliament"],
+    "MO":["Medical Officer","Modus Operandi (method)","Missouri (US state)"],
+    "MOD":["Ministry of Defence (UK)","Modification"],
+    "MOT":["Ministry of Transport test (UK vehicle test)"],
+    "MSc":["Master of Science (degree)"],
+    "NATO":["North Atlantic Treaty Organisation"],
+    "NB":["Note well (Latin: nota bene)"],
+    "NCO":["Non-Commissioned Officer (military)"],
+    "NHS":["National Health Service (UK)"],
+    "NI":["National Insurance (UK)","Northern Ireland"],
+    "NP":["No Problem","Notary Public","Noun Phrase"],
+    "NY":["New York"],
+    "OAP":["Old Age Pensioner (UK)"],
+    "OBE":["Order of the British Empire (honour)"],
+    "OC":["Officer Commanding","Of course"],
+    "OK":["All correct / approval (from Oklahoma or Oll Korrect)"],
+    "OM":["Order of Merit (honour)"],
+    "OP":["Operation","Opus (musical work)","Out of print"],
+    "OR":["Other Ranks (military)","Oregon (US state)"],
+    "OS":["Ordnance Survey (UK maps)","Operating System","Outsize"],
+    "OT":["Old Testament","Overtime"],
+    "OTC":["Officers' Training Corps","Over the Counter"],
+    "PA":["Personal Assistant","Public Address (system)","Pennsylvania (US state)"],
+    "PC":["Police Constable","Personal Computer","Politically Correct","Privy Councillor"],
+    "PE":["Physical Education","Prince Edward","Peru (country code)"],
+    "PhD":["Doctor of Philosophy (degree)"],
+    "PI":["Private Investigator","Pi (Greek letter / mathematical constant)"],
+    "PO":["Post Office","Petty Officer (naval rank)","Postal Order"],
+    "POW":["Prisoner of War"],
+    "PPI":["Payment Protection Insurance (UK finance)","Pixels Per Inch (display resolution)"],
+    "PR":["Public Relations","Puerto Rico","Proportional Representation"],
+    "PS":["Postscript"],
+    "PT":["Physical Training","Part","Point"],
+    "PTO":["Please Turn Over","Power Take-Off"],
+    "RAF":["Royal Air Force (UK)"],
+    "RIP":["Rest In Peace (Latin: Requiescat in Pace)"],
+    "RM":["Royal Marines","Royal Mail"],
+    "RSM":["Regimental Sergeant Major"],
+    "SA":["South Africa","Sex Appeal (crossword convention)","Salvation Army"],
+    "SAS":["Special Air Service (British elite military unit)"],
+    "SB":["Special Branch (UK police)"],
+    "SE":["South-East"],
+    "SJ":["Society of Jesus (Jesuit order)"],
+    "SO":["Staff Officer","Symphony Orchestra","Significant Other","Standing Order"],
+    "SOS":["Save Our Souls (distress signal)","Secretary of State"],
+    "SP":["Starting Price (horse racing)","Self Propelled"],
+    "SPF":["Sun Protection Factor"],
+    "SW":["South-West","Short Wave (radio)"],
+    "TB":["Tuberculosis","Tablespoon","Terabyte"],
+    "TD":["Territorial Decoration (military)","Teachta Dala (Irish parliament member)"],
+    "TT":["Tourist Trophy (Isle of Man race)","Teetotaller","Trinidad and Tobago"],
+    "TUC":["Trades Union Congress (UK)"],
+    "TV":["Television"],
+    "UAE":["United Arab Emirates"],
+    "UC":["Upper case","University College"],
+    "UFO":["Unidentified Flying Object"],
+    "UK":["United Kingdom"],
+    "UN":["United Nations"],
+    "UNESCO":["United Nations Educational, Scientific and Cultural Organization"],
+    "UNICEF":["United Nations Children's Emergency Fund"],
+    "VC":["Victoria Cross (highest military honour)","Vice-Chancellor","Vice-Consul"],
+    "VD":["Venereal Disease (old term)","Volunteer Decoration"],
+    "VE":["Victory in Europe (VE Day, 1945)"],
+    "VIP":["Very Important Person"],
+    "VO":["Victorian Order","Verbal Order"],
+    "VP":["Vice President"],
+    "VR":["Victoria Regina (Queen Victoria)","Virtual Reality"],
+    "VS":["Versus","Veterinary Surgeon"],
+    "WC":["Water Closet (toilet)","West Central (London area)"],
+    "WI":["Women's Institute (UK)","West Indies","Wisconsin (US state)"],
+    "WO":["Warrant Officer","Walk Over"],
+    "WP":["Word Processing","Weather Permitting"],
+    "WW":["World War (as in WW1, WW2)"],
+  };
+
+  // Acronym lookup
+  const lookupAcronym=()=>{
+    const a=acroInput.trim().toUpperCase().replace(/[^A-Z0-9]/g,"");
+    if(!a)return;
+    setAcroLoad(true);setAcroRes(null);
+    setTimeout(()=>{
+      const hits=ACRO_TABLE[a];
+      if(hits&&hits.length){
+        setAcroRes({acronym:a,expansions:hits.map(h=>{
+          // Split "Expansion (domain)" if present
+          const m=h.match(/^(.+?)\s+\(([^)]+)\)$/);
+          return m?{full:m[1],domain:m[2],notes:""}:{full:h,domain:"General",notes:""};
+        })});
+      } else {
+        // Fuzzy: find entries that start with the query
+        const partial=Object.entries(ACRO_TABLE)
+          .filter(([k])=>k.startsWith(a)&&k!==a)
+          .slice(0,5);
+        if(partial.length){
+          setAcroRes({acronym:a,expansions:[
+            {full:`No exact match. Did you mean: ${partial.map(([k])=>k).join(", ")}?`,domain:"Suggestion",notes:""},
+          ]});
+        } else {
+          setAcroRes({acronym:a,expansions:[{full:"Not found in database. Try a common cryptic crossword acronym.",domain:"",notes:""}]});
+        }
+      }
+      setAcroLoad(false);
+    },100);
+  };
+
+  // Substitution lookup
+  const lookupSubstitution=()=>{
+    const s=subInput.trim().toUpperCase().replace(/[^A-Z0-9]/g,"");
+    if(!s)return;
+    setSubLoad(true);setSubRes(null);
+    setTimeout(()=>{
+      // Direct match
+      const direct=SUB_TABLE[s];
+      // Also check if the input matches any NATO value or other indirect entries
+      const results=direct?[...direct]:[];
+      // Check NATO alphabet if single letter
+      if(s.length===1){
+        const nato=SUB_TABLE["NATO"]||[];
+        const match=nato.find(n=>n.value.startsWith(s+"="));
+        if(match) results.push({...match,reason:"NATO phonetic alphabet"});
+      }
+      if(results.length){
+        setSubRes({input:s,substitutions:results.map(r=>({value:r.value,reason:r.reason,examples:r.ex||[]}))});
+      } else {
+        setSubRes({input:s,substitutions:[{value:"Not in standard table",reason:"Try single letters or common abbreviations like SS, MP, RA, RE",examples:[]}]});
+      }
+      setSubLoad(false);
+    },100);
+  };
+  const lookupDict=async(word)=>{
+    const w=(word||dictWord).trim().toLowerCase();
+    if(!w)return;
+    setDictWord(w);setDictLoad(true);setDictRes(null);setTab("dictionary");
+    try{
+      const r=await fetch("https://api.dictionaryapi.dev/api/v2/entries/en/"+encodeURIComponent(w));
+      if(!r.ok){setDictRes({error:"Word not found."});setDictLoad(false);return;}
+      const data=await r.json();
+      // Flatten meanings
+      const entry=data[0];
+      const meanings=entry.meanings.map(m=>({
+        pos:m.partOfSpeech,
+        defs:m.definitions.slice(0,4).map(d=>({def:d.definition,example:d.example||null})),
+        syns:m.synonyms.slice(0,8),
+        ants:m.antonyms.slice(0,6),
+      }));
+      setDictRes({word:entry.word,phonetic:entry.phonetic||"",meanings});
+    }catch{setDictRes({error:"Lookup failed."});}
+    setDictLoad(false);
+  };
+
+  // Print export — render crossword into hidden div then print just that
+  const expPrint=()=>{
+    const html=buildInteractive(saved,places,gs,mba,cells,nums);
+    const win=window.open("","_blank","width=900,height=700");
+    if(!win){alert("Please allow popups to use the print export.");return;}
+    win.document.write(html);
+    win.document.close();
+    win.onload=()=>{win.focus();win.print();};
+    setShowExp(false);
+  };
+
+  // Compiler helpers
+  const addToCompiler=()=>{
+    if(!answer.trim()||!clue.trim())return;
+    const bare=strip(answer);if(bare.length<2)return;
+    if(editingId){
+      // Update existing entry in place
+      setSaved(prev=>prev.map(c=>c.id===editingId
+        ?{...c,answer:answer.trim(),answerLetters:bare,clue:clue.trim(),note,annotations:{...anno}}
+        :c));
+      setAddFlash(true);setTimeout(()=>setAddFlash(false),1800);
+    } else {
+      const nc={id:"c_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),answer:answer.trim(),answerLetters:bare,clue:clue.trim(),note,annotations:{...anno}};
+      setSaved(prev=>[...prev,nc]);
+      setEditingId(nc.id);
+      setAddFlash(true);setTimeout(()=>setAddFlash(false),1800);
+    }
+  };
+  const delSaved=id=>{
+    setSaved(prev=>prev.filter(c=>c.id!==id));
+    setPlaces(prev=>prev.filter(p=>p.clueId!==id));
+    if(selId===id){setSelId(null);setSelSegIdx(0);setDetail(null);}
+    if(detail&&detail.id===id)setDetail(null);
+    if(editingId===id)setEditingId(null);
+  };
+  const loadIntoBuilder=sc=>{
+    setAnswer(sc.answer);setClue(sc.clue);setAnno(sc.annotations||{});
+    setSel(new Set());setTab("synonyms");setDetail(null);
+    setEditingId(sc.id); // mark this entry as being edited
+  };
+
+  // Grid
+  const{cells,nums,placed,symOrphans}=useMemo(()=>{
+    const c=Array.from({length:gs},()=>Array.from({length:gs},()=>({isBlk:false,letter:null})));
+    for(const k of mb){
+      const[r,col]=k.split(",").map(Number);
+      if(r>=0&&r<gs&&col>=0&&col<gs)c[r][col].isBlk=true;
+    }
+    for(const p of places){
+      for(let i=0;i<p.length;i++){
+        const r=p.dir==="h"?p.row:p.row+i;
+        const col=p.dir==="h"?p.col+i:p.col;
+        if(r>=0&&r<gs&&col>=0&&col<gs&&!c[r][col].isBlk)c[r][col].letter=p.answer[i];
+      }
+      const fb=(r,col)=>{
+        if(r<0||r>=gs||col<0||col>=gs)return;
+        c[r][col].isBlk=true;c[r][col].letter=null;
+        const sr=gs-1-r,sc=gs-1-col;
+        if((sr!==r||sc!==col)&&sr>=0&&sr<gs&&sc>=0&&sc<gs){c[sr][sc].isBlk=true;c[sr][sc].letter=null;}
+      };
+      if(p.dir==="h"){fb(p.row,p.col-1);fb(p.row,p.col+p.length);}
+      else{fb(p.row-1,p.col);fb(p.row+p.length,p.col);}
+    }
+    const n={};let num=1;
+    for(let r=0;r<gs;r++)for(let col=0;col<gs;col++){
+      if(c[r][col].isBlk)continue;
+      const sH=(col===0||c[r][col-1].isBlk)&&col+1<gs&&!c[r][col+1].isBlk;
+      const sV=(r===0||c[r-1][col].isBlk)&&r+1<gs&&!c[r+1][col].isBlk;
+      if(sH||sV)n[r+","+col]=num++;
+    }
+    return{cells:c,nums:n,placed:places,symOrphans:(()=>{
+      // Cells covered by any placement
+      const filled=new Set();
+      for(const p of places){
+        for(let i=0;i<p.length;i++){
+          const r=p.dir==="h"?p.row:p.row+i;
+          const col2=p.dir==="h"?p.col+i:p.col;
+          filled.add(r+","+col2);
+        }
+      }
+      // For each filled cell, check if its symmetric partner is empty (not filled, not black)
+      const orphans=new Set();
+      for(const k of filled){
+        const[r,col2]=k.split(",").map(Number);
+        const sr=gs-1-r,sc2=gs-1-col2;
+        const sk=sr+","+sc2;
+        if(sr>=0&&sr<gs&&sc2>=0&&sc2<gs&&!filled.has(sk)&&!c[sr][sc2].isBlk){
+          orphans.add(sk);
+        }
+      }
+      return orphans;
+    })()};
+  },[places,mb,gs]);
+
+  const canPlace=(co,row,col,dir,segLetters,segIdx)=>{
+    const letters=segLetters||co.answerLetters;
+    const si=segIdx||0;
+    const len=letters.length;
+    if(row<0||col<0||row>=gs||col>=gs)return{ok:false,r:"off-grid"};
+    if(dir==="h"&&col+len>gs)return{ok:false,r:"too long"};
+    if(dir==="v"&&row+len>gs)return{ok:false,r:"too long"};
+    for(let i=0;i<len;i++){
+      const r=dir==="h"?row:row+i,c=dir==="h"?col+i:col;
+      if(mb.has(r+","+c))return{ok:false,r:"black cell"};
+      for(const p of places){
+        // Skip this exact segment being replaced, but keep other segments of same clue
+        if(p.clueId===co.id&&(p.segIdx||0)===si)continue;
+        for(let j=0;j<p.length;j++){
+          const pr=p.dir==="h"?p.row:p.row+j,pc=p.dir==="h"?p.col+j:p.col;
+          if(pr===r&&pc===c&&p.answer[j]!==letters[i])return{ok:false,r:"conflict at "+(r+1)+","+(c+1)};
+        }
+      }
+    }
+    return{ok:true};
+  };
+
+  const placeWord=(co,row,col,dir,segLetters,segIdx)=>{
+    const letters=segLetters||co.answerLetters;
+    const si=segIdx||0;
+    let d=dir;
+    if(!canPlace(co,row,col,d,letters,si).ok){
+      const other=d==="h"?"v":"h";
+      if(canPlace(co,row,col,other,letters,si).ok)d=other;
+      else{
+        const res=canPlace(co,row,col,dir,letters,si);
+        setGridMsg({type:"err",text:"Cannot place: "+res.r});
+        setTimeout(()=>setGridMsg(null),3500);
+        return false;
+      }
+    }
+    setPlaces(prev=>[
+      ...prev.filter(p=>!(p.clueId===co.id&&(p.segIdx||0)===si)),
+      {id:"p_"+Date.now(),clueId:co.id,segIdx:si,row,col,dir:d,length:letters.length,answer:letters}
+    ]);
+    return true;
+  };
+
+  const handleCell=(r,c)=>{
+    if(sugMode){
+      if(!regA){setRegA({row:r,col:c});return;}
+      if(regA.row!==r&&regA.col!==c){setGridMsg({type:"err",text:"Region must be horizontal or vertical."});setTimeout(()=>setGridMsg(null),3000);return;}
+      setRegB({row:r,col:c});return;
+    }
+    if(selId){
+      const co=saved.find(s=>s.id===selId);if(!co)return;
+      const segs=parseSegments(co.note);
+      const segLetters=segs?co.answerLetters.slice(
+        segs.slice(0,selSegIdx).reduce((a,n)=>a+n,0),
+        segs.slice(0,selSegIdx+1).reduce((a,n)=>a+n,0)
+      ):co.answerLetters;
+      // Find existing placement for THIS segment to allow direction flip
+      const ex=places.find(p=>p.clueId===selId&&(p.segIdx||0)===selSegIdx);
+      let dir="h";
+      if(ex&&ex.row===r&&ex.col===c)dir=ex.dir==="h"?"v":"h";
+      const ok=placeWord(co,r,c,dir,segLetters,selSegIdx);
+      if(ok&&segs){
+        // Advance to next segment (use timeout to let state settle)
+        setTimeout(()=>{
+          setSelSegIdx(prev=>{
+            const nextSeg=segs.findIndex((_,i)=>i>prev);
+            return nextSeg!==-1?nextSeg:prev;
+          });
+        },0);
+      }
+      return;
+    }
+    if(cells[r][c].letter){setGridMsg({type:"err",text:"Cell has a placed letter -- unplace the clue first."});setTimeout(()=>setGridMsg(null),2500);return;}
+    const key=r+","+c,sr=gs-1-r,sc=gs-1-c,sk=sr+","+sc;
+    setMb(prev=>{const next=new Set(prev);next.has(key)?(next.delete(key),next.delete(sk)):(next.add(key),next.add(sk));return next;});
+  };
+  const handleChipClick=sc=>{
+    if(detail&&detail.id===sc.id){setDetail(null);setSelId(null);setSelSegIdx(0);return;}
+    setDetail(sc);setSelId(sc.id);setSelSegIdx(0);
+    setSugMode(false);setRegA(null);setRegB(null);setSuggs([]);
+  };
+
+  // Region
+  const regInfo=useMemo(()=>{
+    if(!regA||!regB)return null;
+    if(regA.row!==regB.row&&regA.col!==regB.col)return null;
+    const horiz=regA.row===regB.row;
+    const cellList=[];
+    if(horiz){const row=regA.row,c1=Math.min(regA.col,regB.col),c2=Math.max(regA.col,regB.col);for(let c=c1;c<=c2;c++)cellList.push([row,c]);}
+    else{const col=regA.col,r1=Math.min(regA.row,regB.row),r2=Math.max(regA.row,regB.row);for(let r=r1;r<=r2;r++)cellList.push([r,col]);}
+    const hasBlk=cellList.some(([r,c])=>cells[r][c].isBlk);
+    const p=cellList.map(([r,c])=>cells[r][c].letter?cells[r][c].letter.toLowerCase():"?").join("");
+    return{cellList,horiz,hasBlk,pat:p,len:cellList.length};
+  },[regA,regB,cells]);
+
+  useEffect(()=>{
+    if(!regInfo||regInfo.hasBlk||regInfo.len<2)return;
+    (async()=>{
+      setSugLoad(true);setSuggs([]);
+    try{
+      const d=await dm({sp:regInfo.pat,max:80});
+      const stripped=[...new Set(d.map(x=>x.word.replace(/[^a-zA-Z]/g,"")).filter(w=>w.length===regInfo.len))];
+      setSuggs(stripped);
+    }      catch{setSuggs([]);}
+      setSugLoad(false);
+    })();
+  },[regInfo]);// eslint-disable-line
+
+  const sugToClue=word=>{
+    if(!regInfo)return;
+    const bare=word.toUpperCase().replace(/[^A-Z]/g,"");
+    const nc={id:"c_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),answer:word.toUpperCase(),answerLetters:bare,clue:word+" -- clue to be written",note:"("+bare.length+")",annotations:{}};
+    setSaved(prev=>[...prev,nc]);
+    const row=Math.min(regInfo.cellList[0][0],regInfo.cellList[regInfo.cellList.length-1][0]);
+    const col=Math.min(regInfo.cellList[0][1],regInfo.cellList[regInfo.cellList.length-1][1]);
+    const dir=regInfo.horiz?"h":"v";
+    setTimeout(()=>setPlaces(prev=>[...prev,{id:"p_"+Date.now(),clueId:nc.id,row,col,dir,length:bare.length,answer:bare}]),50);
+    setAnswer(word.toUpperCase());setClue(word+" -- clue to be written");setAnno({});
+    setSelId(nc.id);setDetail(nc);setSugMode(false);setRegA(null);setRegB(null);setSuggs([]);
+  };
+
+  const prevCells=useMemo(()=>{
+    if(!selId||!hov)return null;
+    const co=saved.find(s=>s.id===selId);if(!co)return null;
+    const segs=parseSegments(co.note);
+    const segLetters=segs?co.answerLetters.slice(
+      segs.slice(0,selSegIdx).reduce((a,n)=>a+n,0),
+      segs.slice(0,selSegIdx+1).reduce((a,n)=>a+n,0)
+    ):co.answerLetters;
+    const ex=places.find(p=>p.clueId===selId&&(p.segIdx||0)===selSegIdx);
+    let dir="h";if(ex&&ex.row===hov.row&&ex.col===hov.col)dir=ex.dir==="h"?"v":"h";
+    const cs=new Set();
+    for(let i=0;i<segLetters.length;i++){
+      const r=dir==="h"?hov.row:hov.row+i,c=dir==="h"?hov.col+i:hov.col;
+      if(r>=0&&r<gs&&c>=0&&c<gs)cs.add(r+","+c);
+    }
+    return{cs,valid:canPlace(co,hov.row,hov.col,dir,segLetters,selSegIdx).ok};
+  },[selId,selSegIdx,hov,saved,places,gs,mb]);// eslint-disable-line
+
+  const regSet=useMemo(()=>{
+    if(!regInfo)return new Set();
+    return new Set(regInfo.cellList.map(([r,c])=>r+","+c));
+  },[regInfo]);
+
+  const changeGs=v=>{
+    const n=Math.max(3,Math.min(25,parseInt(v)||13));
+    if(n===gs)return;
+    setPlaces(prev=>prev.filter(p=>p.dir==="h"?p.row<n&&p.col+p.length<=n:p.col<n&&p.row+p.length<=n));
+    setMb(prev=>{const next=new Set();for(const k of prev){const[r,c]=k.split(",").map(Number);if(r<n&&c<n)next.add(k);}return next;});
+    setGs(n);
+  };
+  const clearGrid=()=>{
+    if(!confirm("Clear all placements and black squares?"))return;
+    setPlaces([]);setMb(new Set());setSelId(null);setSugMode(false);setRegA(null);setRegB(null);setSuggs([]);setDetail(null);
+  };
+
+  // Export
+  const expJSON=()=>{
+    const blob=new Blob([JSON.stringify({saved,gs,places,mb:mba,v:1},null,2)],{type:"application/json"});
+    const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="cryptic-draft.json";a.click();
+    setShowExp(false);
+  };
+  const impJSON=()=>{
+    const inp=document.createElement("input");inp.type="file";inp.accept=".json";
+    inp.onchange=e=>{
+      const file=e.target.files[0];if(!file)return;
+      const reader=new FileReader();
+      reader.onload=ev=>{
+        try{const d=JSON.parse(ev.target.result);if(d.saved)setSaved(d.saved);if(d.gs)setGs(d.gs);if(d.places)setPlaces(d.places);if(d.mb)setMba(d.mb);setShowExp(false);}
+        catch{alert("Invalid file.");}
+      };
+      reader.readAsText(file);
+    };
+    inp.click();
+  };
+  const expHTML=()=>{
+    const html=buildInteractive(saved,places,gs,mba,cells,nums);
+    const blob=new Blob([html],{type:"text/html"});
+    const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="cryptic-interactive.html";a.click();
+    setShowExp(false);
+  };
+
+  // Clue lists for sidebar — group multi-segment clues under their combined number string
+  const clueSheet=useMemo(()=>{
+    const ac=[],dn=[];
+    // Group all placements by clueId
+    const byClue={};
+    for(const p of places){
+      if(!byClue[p.clueId])byClue[p.clueId]=[];
+      byClue[p.clueId].push(p);
+    }
+    for(const[clueId,segs] of Object.entries(byClue)){
+      const sc=saved.find(s=>s.id===clueId);
+      // Sort segments by segIdx
+      segs.sort((a,b)=>(a.segIdx||0)-(b.segIdx||0));
+      // Determine direction from first segment
+      const dir=segs[0].dir;
+      // Collect numbers for each segment
+      const segNums=segs.map(p=>nums[p.row+","+p.col]).filter(Boolean);
+      if(!segNums.length)continue;
+      const numStr=segNums.join(", ");
+      const firstNum=segNums[0];
+      (dir==="h"?ac:dn).push({num:firstNum,numStr,text:sc?sc.clue:"(no clue)",note:sc?sc.note:""});
+    }
+    ac.sort((a,b)=>a.num-b.num);dn.sort((a,b)=>a.num-b.num);
+    return{ac,dn};
+  },[places,saved,nums]);
+
+  const selClue=selId?saved.find(s=>s.id===selId):null;
+
+  /* CHIP WITH OPTIONAL REPLACE BUTTON */
+  const CWR=({word,onChip})=>(
+    <span style={{display:"inline-flex",alignItems:"center",gap:1,margin:2}}>
+      <span className="chip" onClick={onChip||(() => lookupSyn(word))} style={{margin:0}}>{word}</span>
+      {repTarget&&<button className="btn bsm" style={{padding:"1px 4px",fontSize:"8px",background:"#6a3a10"}} onClick={()=>replaceWord(word)} title={"Replace "+repTarget.text}>use</button>}
+    </span>
+  );
+
+  return(
+    <div>
+      {/* TWO PANELS — column-span:all so they interrupt the newspaper flow */}
+      <div className="ui-panels">
+
+        {/* ── LEFT: CLUE WORKSHOP ── */}
+        <div className="lpanel">
+          <div className="pinner">
+            <div className="phead"><span>Clue Workshop</span></div>
+
+            {/* Answer */}
+            <div className="sec">
+              <span className="slbl">Answer</span>
+              <div style={{display:"flex",alignItems:"baseline",gap:10}}>
+                <input className="inp mono" value={answer} onChange={e=>{setAnswer(e.target.value.toUpperCase());if(editingId&&strip(e.target.value)!==strip(answer))setEditingId(null);}}
+                  placeholder="ENTER ANSWER" style={{fontSize:21,fontWeight:700,letterSpacing:".1em",flex:1}}/>
+                {note&&<span className="mono" style={{fontSize:17,color:"#8a7a50",fontWeight:700}}>{note}</span>}
+              </div>
+              <p className="mono" style={{fontSize:7.5,color:"#b0a070",marginTop:5}}>SPACES → (3,4) · HYPHENS → (4-3)</p>
+            </div>
+
+            {/* Clue */}
+            <div className="sec">
+              <span className="slbl">Clue text</span>
+              <input className="inp" value={clue} onChange={handleClueChange} placeholder="Type your clue here…" style={{fontSize:16}}/>
+              {repTarget&&<p style={{fontSize:8,color:"#c87a10",fontFamily:"Space Mono,monospace",marginTop:3}}>↩ buttons will replace "{repTarget.text}"</p>}
+            </div>
+
+            {/* Annotation */}
+            {clue.trim()&&(
+              <div className="sec">
+                <span className="slbl">Annotation</span>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:7,flexWrap:"wrap",gap:4}}>
+                  <span style={{fontSize:9.5,color:"#8a7a50",fontFamily:"Space Mono,monospace"}}>{sel.size>0?sel.size+" selected":"Click words to tag"}</span>
+                  <div style={{display:"flex",gap:4}}>
+                    {sel.size>0&&<button className="bghost bsm" onClick={()=>setSel(new Set())}>✕ deselect</button>}
+                    {hasAnno&&<button className="bghost bsm" style={{color:"#7a2020"}} onClick={()=>{setAnno({});setSel(new Set());}}>✕ clear all</button>}
+                  </div>
+                </div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:9}}>
+                  {TAGS.map(tag=>(
+                    <button key={tag.id} className="tbtn" disabled={!sel.size} onClick={()=>applyTag(tag.id)}
+                      style={{background:tag.bg,color:tag.tc,borderColor:tag.bd}}>
+                      <span>{tag.short}</span>
+                      <span style={{fontFamily:"Crimson Pro,serif",fontWeight:400,fontSize:9.5,opacity:.85}}>{tag.label}</span>
+                    </button>
+                  ))}
+                </div>
+                <div style={{background:"rgba(0,0,0,.04)",border:"1px solid rgba(0,0,0,.1)",padding:"8px 10px",marginBottom:7}}>
+                  <p className="mono" style={{fontSize:7,color:"#b0a070",marginBottom:6,letterSpacing:".08em"}}>CLICK · SHIFT+CLICK RANGE · RIGHT-CLICK REMOVE</p>
+                  <div style={{lineHeight:1.9,display:"flex",flexWrap:"wrap"}}>
+                    {toks.map((t,i)=>{
+                      if(!t.isWord)return<span key={i}>{t.text}</span>;
+                      const tag=TMAP[anno[t.wi]];
+                      const isSel=sel.has(t.wi);
+                      return<span key={i} className={"wchip"+(isSel?" sel":"")}
+                        onClick={e=>toggleWord(t.wi,e)}
+                        onContextMenu={e=>{e.preventDefault();remAnno(t.wi);}}
+                        style={{background:tag?tag.bg:isSel?"rgba(200,122,16,.1)":"transparent",color:tag?tag.tc:"#1a1008",borderBottomColor:tag?tag.bd:"transparent"}}>
+                        {t.text}
+                      </span>;
+                    })}
+                    {note&&<span className="mono" style={{fontSize:12,color:"#9a8a60",marginLeft:4,lineHeight:1.9}}>{note}</span>}
+                  </div>
+                </div>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:5}}>
+                  <div>{usedTagIds.map(id=>{const tag=TMAP[id];return<span key={id} className="pill" style={{background:tag.bg,color:tag.tc,borderColor:tag.bd}}>{tag.label}</span>;})}</div>
+                  <div style={{display:"flex",gap:4}}>
+                    {clue.trim()&&<button className="btn bsm" onClick={()=>{navigator.clipboard.writeText(clue.trim()+" "+note).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),1500);});}}>{copied?"✓":"Copy"}</button>}
+                    {clue.trim()&&answer.trim()&&(()=>{
+                      const isUpdate=!!editingId&&saved.some(c=>c.id===editingId);
+                      return(
+                        <button className="btn bsm" onClick={addToCompiler}
+                          style={{background:addFlash?"#1a4a1a":isUpdate?"#3a4a8a":"#2a1a08"}}>
+                          {addFlash?"Saved!":isUpdate?"Update in compiler":"+ Add to compiler"}
+                        </button>
+                      );
+                    })()}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Lookup tabs */}
+            <div className="sec" style={{padding:0,overflow:"hidden"}}>
+              <div className="tabs" style={{padding:"0 12px"}}>
+                {["synonyms","search","anagram","dictionary","indicators","acronym","substitutions","conventions"].map(t=>(
+                  <button key={t} className={"tab"+(activeTab===t?" on":"")} onClick={()=>setTab(t)}>
+                    {{synonyms:"Synonyms",search:"Search",anagram:"Anagram",dictionary:"Dictionary",indicators:"Indicators",acronym:"Acronym",substitutions:"Substitutions",conventions:"Conventions"}[t]}
+                  </button>
+                ))}
+              </div>
+              <div style={{padding:"10px 12px 12px"}}>
+
+                {/* Synonyms */}
+                {activeTab==="synonyms"&&(
+                  <div>
+                    {sel.size>0&&<p style={{fontSize:7.5,color:"#c87a10",fontFamily:"Space Mono,monospace",marginBottom:5}}>AUTO-FILLED · ↩ TO REPLACE SELECTED WORD</p>}
+                    <div style={{display:"flex",gap:7,marginBottom:11,alignItems:"flex-end"}}>
+                      <input className="inpsm" value={synWord} onChange={e=>setSynWord(e.target.value)} onKeyDown={e=>e.key==="Enter"&&lookupSyn()}
+                        placeholder="Enter a word…" style={{flex:1,fontSize:14}}/>
+                      <button className="btn bsm" disabled={synLoad||!synWord.trim()} onClick={()=>lookupSyn()}>{synLoad?"…":"Look up"}</button>
+                    </div>
+                    {synLoad&&<p style={{color:"#aaa",fontStyle:"italic",fontSize:12}}>Consulting the thesaurus…</p>}
+                    {synRes&&!synRes.error&&(
+                      <div>
+                        {synRes.indRoles.length>0&&(
+                          <div style={{marginBottom:9,padding:"6px 8px",background:"#fef8e0",border:"1px solid #d4b440"}}>
+                            <span className="lbl" style={{color:"#7a6020"}}>Used as indicator:</span>
+                            {synRes.indRoles.map(cat=><span key={cat} className="pill" style={{background:"#d8e4ff",color:"#0a2060",borderColor:"#a0b8e8"}}>{INDS[cat].label}</span>)}
+                          </div>
+                        )}
+                        {synRes.syns.length>0&&<div style={{marginBottom:9}}><span className="lbl">Synonyms</span><div>{synRes.syns.map((s,i)=><CWR key={i} word={s} onChip={()=>lookupSyn(s)}/>)}</div></div>}
+                        {synRes.ml.length>0&&<div style={{marginBottom:9}}><span className="lbl">Related meaning</span><div>{synRes.ml.map((s,i)=><CWR key={i} word={s} onChip={()=>lookupSyn(s)}/>)}</div></div>}
+                        {synRes.trg.length>0&&<div style={{marginBottom:9}}><span className="lbl">Associated</span><div>{synRes.trg.map((s,i)=><CWR key={i} word={s} onChip={()=>lookupSyn(s)}/>)}</div></div>}
+                      </div>
+                    )}
+                    {synRes&&synRes.error&&<p style={{color:"#c00",fontSize:12}}>{synRes.error}</p>}
+                  </div>
+                )}
+
+                {/* Word search */}
+                {activeTab==="search"&&(
+                  <div>
+                    {sel.size>0&&<p style={{fontSize:7.5,color:"#c87a10",fontFamily:"Space Mono,monospace",marginBottom:5}}>AUTO-FILLED · ↩ TO REPLACE</p>}
+                    <div style={{display:"flex",gap:7,marginBottom:5,alignItems:"flex-end",flexWrap:"wrap"}}>
+                      <div style={{flex:"1 1 130px"}}>
+                        <span className="lbl">Pattern</span>
+                        <input className="inpsm mono" value={pat} onChange={e=>setPat(e.target.value)} onKeyDown={e=>e.key==="Enter"&&doSearch()}
+                          placeholder="e.g. c?t or *tion" style={{width:"100%",fontSize:14,letterSpacing:".04em"}}/>
+                      </div>
+                      <div style={{width:65}}>
+                        <span className="lbl">Length</span>
+                        <input type="number" className="inpsm mono" value={exLen} onChange={e=>setExLen(e.target.value)} placeholder="—" min="1" max="25"
+                          style={{width:"100%",fontSize:14}}/>
+                      </div>
+                      <button className="btn bsm" disabled={searching||!pat.trim()} onClick={doSearch}>{searching?"…":"Search"}</button>
+                    </div>
+                    <p className="mono" style={{fontSize:7.5,color:"#b0a070",marginBottom:10}}>? = one letter · * = any letters</p>
+                    {searching&&<p style={{color:"#aaa",fontStyle:"italic",fontSize:12}}>Searching…</p>}
+                    {!searching&&searchRes.length>0&&<div><span className="lbl">{searchRes.length} results</span><div>{searchRes.map((w,i)=><CWR key={i} word={w} onChip={()=>lookupSyn(w)}/>)}</div></div>}
+                    {!searching&&searchDone&&searchRes.length===0&&<p style={{color:"#aaa",fontStyle:"italic",fontSize:12}}>No matches.</p>}
+                  </div>
+                )}
+
+                {/* Anagram */}
+                {activeTab==="anagram"&&(
+                  <div>
+                    <div style={{display:"flex",gap:7,marginBottom:5,alignItems:"flex-end",flexWrap:"wrap"}}>
+                      <div style={{flex:"1 1 130px"}}>
+                        <span className="lbl">Letters (fodder)</span>
+                        <input className="inpsm mono" value={anaIn} onChange={e=>setAnaIn(e.target.value.toUpperCase())} onKeyDown={e=>e.key==="Enter"&&solveAnagram()}
+                          placeholder="e.g. STEAM" style={{width:"100%",fontSize:14,letterSpacing:".06em"}}/>
+                      </div>
+                      <div style={{width:65}}>
+                        <span className="lbl">Fix length</span>
+                        <input type="number" className="inpsm mono" value={anaLen} onChange={e=>setAnaLen(e.target.value)} placeholder="—" min="1" max="25"
+                          style={{width:"100%",fontSize:14}}/>
+                      </div>
+                      <button className="btn bsm" disabled={anaLoad||!anaIn.trim()} onClick={solveAnagram}>{anaLoad?"…":"Solve"}</button>
+                    </div>
+                    <p className="mono" style={{fontSize:7.5,color:"#b0a070",marginBottom:10}}>Full anagrams + partial (words using a subset of letters)</p>
+                    {anaLoad&&<p style={{color:"#aaa",fontStyle:"italic",fontSize:12}}>{wordListRef&&wordListRef.current?"Solving...":"Loading word list (first use only)..."}</p>}
+                    {!anaLoad&&anaRes.length>0&&(
+                      <div style={{marginBottom:10}}>
+                        <span className="lbl">Full anagrams ({anaRes.length})</span>
+                        <div>{anaRes.map((w,i)=><span key={i} className="chip chipg" onClick={()=>lookupSyn(w)}>{w}</span>)}</div>
+                      </div>
+                    )}
+                    {!anaLoad&&anaPartial.length>0&&(
+                      <div>
+                        <span className="lbl">Partial anagrams — words from a subset of these letters ({anaPartial.length})</span>
+                        <div>{anaPartial.map((w,i)=>(
+                          <span key={i} className="chip" style={{background:"#e8e0c8",borderColor:"#c0b080"}} onClick={()=>lookupSyn(w)}>
+                            {w}<sup style={{fontSize:7,marginLeft:1,color:"#8a7a50"}}>{w.length}</sup>
+                          </span>
+                        ))}</div>
+                      </div>
+                    )}
+                    {!anaLoad&&anaDone&&anaRes.length===0&&anaPartial.length===0&&<p style={{color:"#aaa",fontStyle:"italic",fontSize:12}}>No anagrams found.</p>}
+                  </div>
+                )}
+
+                {/* Dictionary */}
+                {activeTab==="dictionary"&&(
+                  <div>
+                    {sel.size>0&&<p style={{fontSize:7.5,color:"#c87a10",fontFamily:"Space Mono,monospace",marginBottom:5}}>AUTO-FILLED FROM SELECTED WORD</p>}
+                    <div style={{display:"flex",gap:7,marginBottom:11,alignItems:"flex-end"}}>
+                      <input className="inpsm" value={dictWord} onChange={e=>setDictWord(e.target.value)} onKeyDown={e=>e.key==="Enter"&&lookupDict()}
+                        placeholder="Look up a word…" style={{flex:1,fontSize:14}}/>
+                      <button className="btn bsm" disabled={dictLoad||!dictWord.trim()} onClick={()=>lookupDict()}>{dictLoad?"…":"Look up"}</button>
+                    </div>
+                    {dictLoad&&<p style={{color:"#aaa",fontStyle:"italic",fontSize:12}}>Consulting the dictionary…</p>}
+                    {dictRes&&dictRes.error&&<p style={{color:"#a04020",fontSize:12,fontStyle:"italic"}}>{dictRes.error}</p>}
+                    {dictRes&&!dictRes.error&&(
+                      <div>
+                        <div style={{marginBottom:8,borderBottom:"1px solid rgba(0,0,0,.15)",paddingBottom:6}}>
+                          <span style={{fontFamily:"Playfair Display,serif",fontSize:18,fontWeight:700}}>{dictRes.word}</span>
+                          {dictRes.phonetic&&<span style={{fontSize:12,color:"#7a6a40",marginLeft:8,fontStyle:"italic"}}>{dictRes.phonetic}</span>}
+                        </div>
+                        {dictRes.meanings.map((m,mi)=>(
+                          <div key={mi} style={{marginBottom:10}}>
+                            <span style={{fontFamily:"Space Mono,monospace",fontSize:8,fontStyle:"italic",color:"#8a7a50",textTransform:"uppercase",letterSpacing:".1em",background:"rgba(0,0,0,.07)",padding:"1px 5px"}}>{m.pos}</span>
+                            <ol style={{marginTop:5,paddingLeft:16}}>
+                              {m.defs.map((d,di)=>(
+                                <li key={di} style={{fontSize:11.5,lineHeight:1.55,marginBottom:4,color:"#2a1a08"}}>
+                                  {d.def}
+                                  {d.example&&<span style={{display:"block",fontSize:10.5,color:"#6a5a30",fontStyle:"italic",marginTop:1}}>"{d.example}"</span>}
+                                </li>
+                              ))}
+                            </ol>
+                            {m.syns.length>0&&(
+                              <div style={{marginTop:5}}>
+                                <span className="lbl" style={{display:"inline",marginRight:4}}>Synonyms:</span>
+                                {m.syns.map((s,si)=><span key={si} className="chip" onClick={()=>lookupSyn(s)} style={{fontSize:9.5}}>{s}</span>)}
+                              </div>
+                            )}
+                            {m.ants.length>0&&(
+                              <div style={{marginTop:4}}>
+                                <span className="lbl" style={{display:"inline",marginRight:4}}>Antonyms:</span>
+                                {m.ants.map((s,si)=><span key={si} className="chip" style={{fontSize:9.5,background:"#f0d8d0",borderColor:"#c09080"}}>{s}</span>)}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Indicators */}
+                {activeTab==="indicators"&&(
+                  <div>
+                    <div style={{display:"flex",gap:6,marginBottom:10,alignItems:"flex-end"}}>
+                      <input className="inpsm" value={indFilter} onChange={e=>setIndFilter(e.target.value)} placeholder="Filter…" style={{flex:1,fontSize:13}}/>
+                      {indFilter&&<button className="bghost bsm" onClick={()=>setIndFilter("")}>✕</button>}
+                    </div>
+                    {(()=>{
+                      const q=indFilter.trim().toLowerCase();
+                      const entries=Object.entries(INDS).map(([cat,data])=>{
+                        if(!q)return[cat,data];
+                        const matching=data.words.filter(w=>w.toLowerCase().includes(q));
+                        if(!matching.length&&!cat.includes(q)&&!data.label.toLowerCase().includes(q))return null;
+                        return[cat,{...data,words:matching.length?matching:data.words}];
+                      }).filter(Boolean);
+                      if(!entries.length)return<p style={{color:"#aaa",fontStyle:"italic",fontSize:12}}>No matches.</p>;
+                      return entries.map(([cat,data])=>(
+                        <div key={cat} style={{marginBottom:13}}>
+                          <div style={{display:"flex",alignItems:"baseline",gap:7,borderBottom:"1px solid #c8b880",marginBottom:5,paddingBottom:3}}>
+                            <span style={{fontFamily:"Playfair Display,serif",fontSize:14,fontWeight:700}}>{data.label}</span>
+                            <span style={{fontSize:11,color:"#8a7a50",fontStyle:"italic"}}>{data.desc}</span>
+                          </div>
+                          <div>{data.words.map((w,i)=><span key={i} className="chip chipb" onClick={()=>lookupSyn(w)}>{w}</span>)}</div>
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                )}
+
+                {/* Acronym finder */}
+                {activeTab==="acronym"&&(
+                  <div>
+                    <p className="mono" style={{fontSize:7.5,color:"#8a7a50",marginBottom:8}}>ENTER AN ACRONYM OR INITIALISM TO FIND WHAT IT STANDS FOR</p>
+                    <div style={{display:"flex",gap:7,marginBottom:11,alignItems:"flex-end"}}>
+                      <input className="inpsm mono" value={acroInput} onChange={e=>setAcroInput(e.target.value.toUpperCase())}
+                        onKeyDown={e=>e.key==="Enter"&&lookupAcronym()}
+                        placeholder="e.g. PPI, NASA, LCD…" style={{flex:1,fontSize:16,letterSpacing:".08em"}}/>
+                      <button className="btn bsm" disabled={acroLoad||!acroInput.trim()} onClick={lookupAcronym}>
+                        {acroLoad?"…":"Look up"}
+                      </button>
+                    </div>
+                    {acroLoad&&<p style={{color:"#aaa",fontStyle:"italic",fontSize:12}}>Searching the archive…</p>}
+                    {acroRes&&acroRes.error&&<p style={{color:"#a04020",fontSize:12,fontStyle:"italic"}}>{acroRes.error}</p>}
+                    {acroRes&&!acroRes.error&&(
+                      <div>
+                        <div style={{fontFamily:"Playfair Display,serif",fontSize:17,fontWeight:700,borderBottom:"1px solid #c8b880",paddingBottom:4,marginBottom:10}}>
+                          {acroRes.acronym}
+                        </div>
+                        {(acroRes.expansions||[]).map((exp,i)=>(
+                          <div key={i} style={{marginBottom:7,paddingBottom:7,borderBottom:"1px solid rgba(0,0,0,.08)"}}>
+                            <div style={{fontSize:13,fontWeight:600,color:"#1a1008",lineHeight:1.3}}>{exp.full}</div>
+                            <div style={{display:"flex",gap:6,marginTop:3,alignItems:"baseline",flexWrap:"wrap"}}>
+                              <span style={{fontFamily:"Space Mono,monospace",fontSize:8.5,background:"#e8e0c8",border:"1px solid #c0b080",padding:"1px 6px",color:"#5a4a28"}}>{exp.domain}</span>
+                              {exp.notes&&<span style={{fontSize:11,color:"#7a6a48",fontStyle:"italic"}}>{exp.notes}</span>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Cryptic substitutions */}
+                {activeTab==="substitutions"&&(
+                  <div>
+                    <p className="mono" style={{fontSize:7.5,color:"#8a7a50",marginBottom:8}}>ENTER A LETTER, LETTERS, OR SYMBOL TO SEE ITS CRYPTIC SUBSTITUTION USES</p>
+                    <div style={{display:"flex",gap:7,marginBottom:11,alignItems:"flex-end"}}>
+                      <input className="inpsm mono" value={subInput} onChange={e=>setSubInput(e.target.value.toUpperCase())}
+                        onKeyDown={e=>e.key==="Enter"&&lookupSubstitution()}
+                        placeholder="e.g. V, SS, DR, L, &…" style={{flex:1,fontSize:16,letterSpacing:".1em"}}/>
+                      <button className="btn bsm" disabled={subLoad||!subInput.trim()} onClick={lookupSubstitution}>
+                        {subLoad?"…":"Look up"}
+                      </button>
+                    </div>
+                    {subLoad&&<p style={{color:"#aaa",fontStyle:"italic",fontSize:12}}>Consulting the setter's handbook…</p>}
+                    {subRes&&subRes.error&&<p style={{color:"#a04020",fontSize:12,fontStyle:"italic"}}>{subRes.error}</p>}
+                    {subRes&&!subRes.error&&(
+                      <div>
+                        <div style={{fontFamily:"Playfair Display,serif",fontSize:17,fontWeight:700,borderBottom:"1px solid #c8b880",paddingBottom:4,marginBottom:10}}>
+                          <span>&ldquo;</span>{subRes.input}<span>&rdquo;</span> can represent&hellip;
+                        </div>
+                        {(subRes.substitutions||[]).map((sub,i)=>(
+                          <div key={i} style={{marginBottom:10,paddingBottom:10,borderBottom:"1px solid rgba(0,0,0,.08)"}}>
+                            <div style={{display:"flex",alignItems:"baseline",gap:8,flexWrap:"wrap",marginBottom:3}}>
+                              <span style={{fontFamily:"Space Mono,monospace",fontSize:13,fontWeight:700,color:"#1a1008",letterSpacing:".04em"}}>{sub.value}</span>
+                              <span style={{fontFamily:"Space Mono,monospace",fontSize:8.5,background:"#d8e8ff",border:"1px solid #a0b8e8",padding:"1px 6px",color:"#0a2060"}}>{sub.reason}</span>
+                            </div>
+                            {sub.examples&&sub.examples.length>0&&(
+                              <div style={{marginTop:4}}>
+                                {sub.examples.map((ex,j)=>(
+                                  <div key={j} style={{fontSize:11,color:"#5a4a28",fontStyle:"italic",marginBottom:2}}>
+                                    <span style={{color:"#9a8a60",fontStyle:"normal",marginRight:4,fontFamily:"Space Mono,monospace",fontSize:9}}>e.g.</span>{ex}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Conventions */}
+                {activeTab==="conventions"&&(
+                  <div>
+                    <p className="mono" style={{fontSize:7.5,color:"#8a7a50",marginBottom:10}}>STANDARD CRYPTIC CROSSWORD CONVENTIONS &amp; SIGNALS</p>
+                    {CONVENTIONS.map((cv,i)=>(
+                      <div key={i} style={{marginBottom:14,paddingBottom:14,borderBottom:"1px solid rgba(0,0,0,.1)"}}>
+                        <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:4,flexWrap:"wrap"}}>
+                          <span style={{fontFamily:"Space Mono,monospace",fontSize:13,fontWeight:700,color:"#1a1008",
+                            background:"#e8e0c8",border:"1px solid #c0b080",padding:"1px 7px",letterSpacing:".04em"}}>
+                            {cv.symbol}
+                          </span>
+                          <span style={{fontFamily:"Playfair Display,serif",fontSize:14,fontWeight:700,color:"#1a1008"}}>{cv.name}</span>
+                          <span style={{fontFamily:"Space Mono,monospace",fontSize:8,background:"#d8e8ff",border:"1px solid #a0b8e8",
+                            padding:"1px 5px",color:"#0a2060"}}>{cv.meaning}</span>
+                        </div>
+                        <p style={{fontSize:11.5,color:"#3a2a10",lineHeight:1.6,marginBottom:6}}>{cv.detail}</p>
+                        {cv.examples.map((ex,j)=>(
+                          <div key={j} style={{fontSize:10.5,color:"#5a4a28",fontStyle:"italic",marginBottom:2,
+                            paddingLeft:8,borderLeft:"2px solid #c8b880"}}>
+                            {ex}
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        {/* RIGHT PANEL */}
+        <div className="rpanel">
+          <div className="pinner">
+            <div className="phead">
+              <span>Grid &amp; Compiler</span>
+              <button className="btn bsm" onClick={()=>setShowExp(true)}>Import / Export</button>
+            </div>
+
+            {/* Saved clues */}
+            <div style={{marginBottom:10}}>
+              <span className="lbl">Saved clues ({saved.length}) — click for detail &amp; placement</span>
+              {saved.length===0?(
+                <p style={{color:"#9a8a60",fontStyle:"italic",fontSize:12}}>Add clues using "+ Add to compiler" in the workshop.</p>
+              ):(
+                <div>
+                  {saved.map(sc=>{
+                    const segs=parseSegments(sc.note);
+                    const placedSegs=places.filter(p=>p.clueId===sc.id);
+                    const totalSegs=segs?segs.length:1;
+                    const placedCount=placedSegs.length;
+                    const fullyPlaced=placedCount>=totalSegs;
+                    const partlyPlaced=placedCount>0&&!fullyPlaced;
+                    const isSel=selId===sc.id;
+                    // Warning flags
+                    const defaultClue=!sc.clue||sc.clue.trim()===""||sc.clue.includes("-- clue to be written");
+                    const noAnnotations=!sc.annotations||Object.keys(sc.annotations).length===0;
+                    return(
+                      <div key={sc.id} className={"scrow"+(isSel?" selrow":"")+(fullyPlaced?" placed":"")} onClick={()=>handleChipClick(sc)}>
+                        {fullyPlaced&&<span className="scchk">✓</span>}
+                        {partlyPlaced&&<span className="scchk" style={{color:"#b87a20"}}>◑</span>}
+                        <span className="scans">{sc.answerLetters}</span>
+                        <span className="scnote">{sc.note}</span>
+                        {partlyPlaced&&<span style={{fontSize:8,fontFamily:"Space Mono,monospace",color:"#b87a20",flexShrink:0}}>{placedCount}/{totalSegs}</span>}
+                        <span className="scclue" style={{color:defaultClue?"#b87020":"#4a3a18",fontStyle:defaultClue?"normal":"italic"}}>
+                          {defaultClue?"(no clue yet)":sc.clue}
+                        </span>
+                        {defaultClue&&<span title="Clue text missing" style={{flexShrink:0,fontSize:9,fontFamily:"Space Mono,monospace",color:"#b87020",fontWeight:700}}>!</span>}
+                        {!defaultClue&&noAnnotations&&<span title="No annotations" style={{flexShrink:0,fontSize:9,fontFamily:"Space Mono,monospace",color:"#a09060",fontWeight:700}}>?</span>}
+                        <button className="scx" onClick={e=>{e.stopPropagation();delSaved(sc.id);}}>✕</button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Detail */}
+            {detail&&(()=>{
+              const detailSegs=parseSegments(detail.note);
+              const detailPlaced=places.filter(p=>p.clueId===detail.id);
+              const detailTotal=detailSegs?detailSegs.length:1;
+              return(
+                <div className="cdetail">
+                  <div className="mono" style={{fontSize:10.5,fontWeight:700,marginBottom:3}}>{detail.answerLetters} {detail.note}</div>
+                  <div style={{fontSize:13.5,fontStyle:"italic",marginBottom:5,color:"#3a2a10"}}>{detail.clue}</div>
+                  {detailSegs&&(
+                    <div style={{fontSize:9,fontFamily:"Space Mono,monospace",color:"#7a6030",marginBottom:6}}>
+                      {detailSegs.length} segments &nbsp;·&nbsp;
+                      {detailPlaced.length}/{detailTotal} placed &nbsp;·&nbsp;
+                      {detailSegs.map((len,i)=>{
+                        const pl=detailPlaced.find(p=>(p.segIdx||0)===i);
+                        const num=pl?nums[pl.row+","+pl.col]:null;
+                        return(
+                          <span key={i} style={{marginRight:4,cursor:selId===detail.id?"pointer":"default",
+                            fontWeight:selId===detail.id&&selSegIdx===i?"700":"400",
+                            color:pl?"#3a7a3a":selId===detail.id&&selSegIdx===i?"#8a2000":"#9a8a60"}}
+                            onClick={()=>{if(selId===detail.id)setSelSegIdx(i);}}>
+                            Seg{i+1}({len}){pl&&num?"="+num:"=?"}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                    <button className="btn bsm" onClick={()=>loadIntoBuilder(detail)}>↑ Load into workshop</button>
+                    {detailPlaced.length>0&&(
+                      <button className="btn bsm bred" onClick={()=>{setPlaces(prev=>prev.filter(p=>p.clueId!==detail.id));setDetail(null);setSelId(null);setSelSegIdx(0);}}>Remove from grid</button>
+                    )}
+                    <button className="bghost bsm" onClick={()=>{setDetail(null);setSelId(null);}}>Close</button>
+                  </div>
+                </div>
+              );
+            })()}
+
+            <hr style={{border:"none",borderTop:"1px solid rgba(0,0,0,.15)",margin:"8px 0"}}/>
+
+            {/* Grid controls */}
+            <div style={{display:"flex",gap:7,alignItems:"flex-end",marginBottom:7,flexWrap:"wrap"}}>
+              <div>
+                <span className="lbl">Grid size</span>
+                <input type="number" className="inpsm mono" value={gs} onChange={e=>changeGs(e.target.value)} min="3" max="25"
+                  style={{width:55,fontSize:17,fontWeight:700}}/>
+              </div>
+              <button className="bghost bsm" onClick={()=>{setSugMode(p=>!p);setSelId(null);setRegA(null);setRegB(null);setSuggs([]);}}
+                style={sugMode?{background:"#d8e8ff",borderColor:"#a0b8e8",color:"#0a2060"}:{}}>
+                {sugMode?"Suggest: on":"Suggest words"}
+              </button>
+              <button className="bghost bsm" onClick={clearGrid} style={{color:"#7a2020",borderColor:"#d0a0a0"}}>✕ Clear</button>
+            </div>
+
+            {/* Mode banner */}
+            <div className={"mbanner "+(sugMode?"mb-sug":selClue?"mb-place":"mb-def")}>
+              {sugMode?(
+                <span>{!regA?"Click a cell to start region.":!regB?("Start: "+(regA.row+1)+","+(regA.col+1)+". Click aligned cell."):regInfo?"Pattern: "+regInfo.pat+" ("+regInfo.len+" letters)":"Invalid."}</span>
+              ):selClue?(
+                <span>
+                  {(()=>{
+                    const segs=parseSegments(selClue.note);
+                    const segLetters=segs?selClue.answerLetters.slice(
+                      segs.slice(0,selSegIdx).reduce((a,n)=>a+n,0),
+                      segs.slice(0,selSegIdx+1).reduce((a,n)=>a+n,0)
+                    ):selClue.answerLetters;
+                    return(
+                      <span>
+                        Placing <strong>{segLetters}</strong>
+                        {segs&&<span style={{marginLeft:6,opacity:.8}}>— seg {selSegIdx+1}/{segs.length}</span>}
+                        <span style={{opacity:.7}}> — click cell, same cell flips H/V</span>
+                        {segs&&(
+                          <span style={{marginLeft:6}}>
+                            {segs.map((_,i)=>{
+                              const pl=places.find(p=>p.clueId===selId&&(p.segIdx||0)===i);
+                              return(
+                                <button key={i} onClick={e=>{e.stopPropagation();setSelSegIdx(i);}}
+                                  style={{marginLeft:2,padding:"1px 5px",fontSize:8,fontFamily:"Space Mono,monospace",
+                                    background:i===selSegIdx?"#1a1008":pl?"#3a7a3a":"#9a8a60",
+                                    color:"#f0ead8",border:"none",cursor:"pointer",borderRadius:2}}>
+                                  {i+1}{pl?"✓":""}
+                                </button>
+                              );
+                            })}
+                          </span>
+                        )}
+                      </span>
+                    );
+                  })()}
+                </span>
+              ):(
+                <span>Click cell to toggle black/white (symmetric). Select a clue above to place.</span>
+              )}
+              {(selId||sugMode)&&(
+                <button className="bghost bsm" onClick={()=>{setSelId(null);setSelSegIdx(0);setDetail(null);setSugMode(false);setRegA(null);setRegB(null);setSuggs([]);}}>Cancel</button>
+              )}
+            </div>
+
+            {gridMsg&&<div className={"gmsg "+gridMsg.type}>{gridMsg.text}</div>}
+
+            {/* Grid */}
+            <div className="xwwrap">
+              <div className="xwgrid" onMouseLeave={()=>setHov(null)}>
+                {cells.map((row,r)=>(
+                  <div key={r} className="xwrow">
+                    {row.map((cell,c)=>{
+                      const k=r+","+c;
+                      const cls=["xwcell"];
+                      if(cell.isBlk)cls.push("blk");
+                      const hasPrev=prevCells&&prevCells.cs.has(k);
+                      const hasReg=regSet.has(k)||(regA&&regA.row===r&&regA.col===c);
+                      if(hasPrev)cls.push(prevCells.valid?"prev":"prevbad");
+                      if(hasReg&&!hasPrev){
+                        const isEp=(regA&&regA.row===r&&regA.col===c)||(regB&&regB.row===r&&regB.col===c);
+                        cls.push(isEp?"rep":"rmid");
+                      }
+                      if(!cell.isBlk&&!hasPrev&&!hasReg&&symOrphans&&symOrphans.has(k))cls.push("symorphan");
+                      return(
+                        <div key={c} className={cls.join(" ")}
+                          onClick={()=>handleCell(r,c)}
+                          onMouseEnter={()=>setHov({row:r,col:c})}>
+                          {nums[k]&&<span className="xwnum">{nums[k]}</span>}
+                          {!cell.isBlk&&cell.letter}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Suggestions */}
+            {sugMode&&regInfo&&!regInfo.hasBlk&&regInfo.len>=2&&(
+              <div style={{marginTop:8,padding:"9px 11px",background:"rgba(255,252,240,.9)",border:"1px solid #c8b880"}}>
+                <span className="lbl">Matches for <span className="mono" style={{color:"#C8830A"}}>{regInfo.pat}</span> — click to place &amp; create clue</span>
+                {sugLoad&&<p style={{color:"#aaa",fontStyle:"italic",fontSize:12}}>Searching…</p>}
+                {!sugLoad&&suggs.length>0&&<div>{suggs.map((w,i)=><span key={i} className="chip chipg" onClick={()=>sugToClue(w)}>{w}<sup style={{fontSize:7.5,marginLeft:2}}>{w.length}</sup></span>)}</div>}
+                {!sugLoad&&suggs.length===0&&<p style={{color:"#aaa",fontStyle:"italic",fontSize:12}}>No matches.</p>}
+              </div>
+            )}
+
+            {/* Clue sheet */}
+            {places.length>0&&(
+              <div style={{marginTop:10}}>
+                <hr style={{border:"none",borderTop:"2px double rgba(0,0,0,.2)",margin:"8px 0"}}/>
+                <div style={{fontFamily:"Playfair Display,serif",fontSize:14,fontWeight:700,marginBottom:7}}>Clue Sheet</div>
+                {clueSheet.ac.length>0&&(
+                  <div style={{marginBottom:9}}>
+                    <span className="lbl">Across</span>
+                    {clueSheet.ac.map(({num,numStr,text,note:n})=>(
+                      <div key={num} style={{fontSize:11,marginBottom:3,display:"flex",gap:5,alignItems:"flex-start"}}>
+                        <span className="mono" style={{fontSize:9,fontWeight:700,minWidth:22,flexShrink:0}}>{numStr||num}A</span>
+                        <span style={{fontStyle:"italic"}}>{text} {n}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {clueSheet.dn.length>0&&(
+                  <div>
+                    <span className="lbl">Down</span>
+                    {clueSheet.dn.map(({num,numStr,text,note:n})=>(
+                      <div key={num} style={{fontSize:11,marginBottom:3,display:"flex",gap:5,alignItems:"flex-start"}}>
+                        <span className="mono" style={{fontSize:9,fontWeight:700,minWidth:22,flexShrink:0}}>{numStr||num}D</span>
+                        <span style={{fontStyle:"italic"}}>{text} {n}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+          </div>
+        </div>
+      </div>
+
+      {/* MODAL */}
+      {showExp&&(
+        <div className="modal-bg" onClick={()=>setShowExp(false)}>
+          <div className="modal" onClick={e=>e.stopPropagation()}>
+            <h2>Import / Export</h2>
+            <div className="mopt" onClick={expJSON}><h3>💾 Save Draft (JSON)</h3><p>Saves all clues, grid layout, and placements for later.</p></div>
+            <div className="mopt" onClick={impJSON}><h3>📂 Load Draft (JSON)</h3><p>Restore a previously saved draft. Replaces current state.</p></div>
+            <div className="mopt" onClick={expHTML}><h3>🖥 Interactive HTML</h3><p>Self-contained puzzle for solvers — type in the grid, Check highlights errors red, Reveal shows the solution.</p></div>
+            <div className="mopt" onClick={expPrint}><h3>🗞 Print Puzzle</h3><p>Opens the crossword in a new window formatted for printing — blank grid with numbered clues across and down.</p></div>
+            <hr style={{margin:"10px 0",border:"none",borderTop:"1px solid #c0b080"}}/>
+            <button className="btn" onClick={()=>setShowExp(false)}>Close</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
