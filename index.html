@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The Cryptic Compiler — Home</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=UnifrakturMaguntia&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+/* ── Reset ── */
+*{box-sizing:border-box;margin:0;padding:0;}
+
+/* ── Paper background ── */
+html,body{
+  min-height:100vh;
+  background:#e2d9c4;
+  background-image:repeating-linear-gradient(
+    0deg,transparent,transparent 26px,rgba(0,0,0,.04) 26px,rgba(0,0,0,.04) 27px
+  );
+  font-family:'Crimson Pro',Georgia,serif;
+  color:#1a0e04;
+}
+
+/* ── Page wrapper ── */
+.page{
+  max-width:900px;
+  margin:0 auto;
+  padding:0 20px 60px;
+}
+
+/* ── Masthead ── */
+.masthead{
+  text-align:center;
+  padding:28px 20px 18px;
+  border-bottom:4px double #1a0e04;
+  margin-bottom:24px;
+}
+.masthead h1{
+  font-family:'UnifrakturMaguntia',cursive;
+  font-size:clamp(38px,8vw,68px);
+  color:#1a0e04;
+  letter-spacing:.02em;
+  line-height:1;
+}
+.masthead .edition{
+  font-family:'Space Mono',monospace;
+  font-size:8px;
+  letter-spacing:.24em;
+  text-transform:uppercase;
+  color:#6a5a38;
+  margin-top:5px;
+}
+.masthead .dateline{
+  font-family:'Crimson Pro',serif;
+  font-style:italic;
+  font-size:12px;
+  color:#8a7a50;
+  margin-top:3px;
+  padding-top:5px;
+  border-top:1px solid rgba(0,0,0,.15);
+}
+
+/* ── Section rules ── */
+.section-rule{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  margin:24px 0 16px;
+}
+.section-rule::before,.section-rule::after{
+  content:'';flex:1;
+  border-top:1px solid rgba(0,0,0,.3);
+}
+.section-rule span{
+  font-family:'Playfair Display',serif;
+  font-size:11px;
+  font-weight:700;
+  letter-spacing:.2em;
+  text-transform:uppercase;
+  color:#6a5a38;
+  white-space:nowrap;
+}
+
+/* ── Workshop card (constructor link) ── */
+.workshop-card{
+  border:1px solid rgba(0,0,0,.2);
+  border-top:4px solid #1a0e04;
+  background:rgba(255,252,240,.85);
+  padding:20px 24px;
+  display:flex;
+  align-items:center;
+  gap:20px;
+  text-decoration:none;
+  color:inherit;
+  transition:background .15s,box-shadow .15s;
+}
+.workshop-card:hover{
+  background:rgba(255,248,220,.95);
+  box-shadow:0 3px 18px rgba(0,0,0,.12);
+}
+.workshop-icon{
+  font-family:'UnifrakturMaguntia',cursive;
+  font-size:42px;
+  color:#1a0e04;
+  line-height:1;
+  flex-shrink:0;
+  opacity:.85;
+}
+.workshop-text h2{
+  font-family:'Playfair Display',serif;
+  font-size:22px;
+  font-weight:900;
+  line-height:1.1;
+  margin-bottom:5px;
+}
+.workshop-text p{
+  font-size:14px;
+  color:#5a4a28;
+  line-height:1.5;
+}
+.workshop-text .tag{
+  display:inline-block;
+  margin-top:8px;
+  font-family:'Space Mono',monospace;
+  font-size:9px;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  background:#1a0e04;
+  color:#f0ead8;
+  padding:2px 8px;
+  border-radius:1px;
+}
+
+/* ── Puzzle grid ── */
+.puzzle-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(250px,1fr));
+  gap:12px;
+}
+
+.puzzle-card{
+  border:1px solid rgba(0,0,0,.18);
+  border-top:3px solid #6a5a38;
+  background:rgba(255,252,240,.8);
+  padding:14px 16px;
+  text-decoration:none;
+  color:inherit;
+  display:block;
+  transition:background .15s,border-top-color .15s,box-shadow .15s;
+  position:relative;
+}
+.puzzle-card:hover{
+  background:rgba(255,248,215,.95);
+  border-top-color:#1a0e04;
+  box-shadow:0 2px 12px rgba(0,0,0,.1);
+}
+.puzzle-card .pnum{
+  font-family:'Space Mono',monospace;
+  font-size:9px;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  color:#8a7a50;
+  margin-bottom:5px;
+}
+.puzzle-card h3{
+  font-family:'Playfair Display',serif;
+  font-size:16px;
+  font-weight:700;
+  line-height:1.2;
+  margin-bottom:4px;
+}
+.puzzle-card .pmeta{
+  font-size:11.5px;
+  color:#6a5a38;
+  font-style:italic;
+  line-height:1.4;
+}
+.puzzle-card .pdate{
+  font-family:'Space Mono',monospace;
+  font-size:9px;
+  color:#9a8a60;
+  margin-top:8px;
+  letter-spacing:.06em;
+}
+.puzzle-card .psize{
+  display:inline-block;
+  font-family:'Space Mono',monospace;
+  font-size:8.5px;
+  background:rgba(0,0,0,.07);
+  padding:1px 6px;
+  margin-top:6px;
+  border-radius:1px;
+  color:#5a4a28;
+}
+
+/* ── Empty state ── */
+.empty-state{
+  grid-column:1/-1;
+  text-align:center;
+  padding:36px 20px;
+  border:1px dashed rgba(0,0,0,.2);
+  background:rgba(255,252,240,.5);
+}
+.empty-state p{
+  font-size:15px;
+  color:#8a7a50;
+  font-style:italic;
+  line-height:1.6;
+}
+.empty-state .code{
+  display:inline-block;
+  margin-top:10px;
+  font-family:'Space Mono',monospace;
+  font-size:10px;
+  background:#1a0e04;
+  color:#f0ead8;
+  padding:8px 14px;
+  text-align:left;
+  line-height:1.7;
+}
+
+/* ── Footer rule ── */
+.foot{
+  margin-top:40px;
+  border-top:3px double rgba(0,0,0,.25);
+  padding-top:14px;
+  text-align:center;
+  font-family:'Space Mono',monospace;
+  font-size:8px;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  color:#9a8a60;
+}
+
+/* ── Responsive ── */
+@media(max-width:500px){
+  .workshop-card{flex-direction:column;text-align:center;}
+  .workshop-icon{font-size:32px;}
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ═══════════════════════════════════════════════
+       MASTHEAD
+  ═══════════════════════════════════════════════ -->
+  <header class="masthead">
+    <h1>The Cryptic Compiler</h1>
+    <div class="edition">Puzzlemaker's Gazette &nbsp;·&nbsp; Est. MDCCCXCIV &nbsp;·&nbsp; Vol. CXXX</div>
+    <div class="dateline" id="dateline">Wednesday, 22nd April 2026</div>
+  </header>
+
+  <!-- ═══════════════════════════════════════════════
+       CLUE WORKSHOP LINK
+  ═══════════════════════════════════════════════ -->
+  <div class="section-rule"><span>Workshop</span></div>
+
+  <a href="cryptic-constructor.html" class="workshop-card">
+    <div class="workshop-icon">&#x275D;</div>
+    <div class="workshop-text">
+      <h2>Cryptic Clue Constructor</h2>
+      <p>Compose and annotate clues, look up synonyms and indicators, solve anagrams,
+         and compile finished clues into a crossword grid. Export as interactive puzzles
+         or print-ready newspaper layouts.</p>
+      <span class="tag">Open Workshop &rarr;</span>
+    </div>
+  </a>
+
+  <!-- ═══════════════════════════════════════════════
+       PUZZLE ARCHIVE
+       ─────────────────────────────────────────────
+       TO ADD A NEW PUZZLE:
+       Copy one of the <a class="puzzle-card"> blocks below,
+       update the href to point to your puzzle file in /puzzles/,
+       and fill in the title, description, date and grid size.
+
+       Example path: href="puzzles/cryptic-interactive%20(1).html"
+  ═══════════════════════════════════════════════ -->
+  <div class="section-rule"><span>Puzzle Archive</span></div>
+
+  <div class="puzzle-grid">
+
+    <!-- ─── ADD PUZZLE ENTRIES BELOW THIS LINE ─────────────────────
+         Copy this block for each puzzle and update the details:
+
+    <a class="puzzle-card" href="puzzles/YOUR-FILE-NAME-URL-ENCODED.html">
+      <div class="pnum">No. 001</div>
+      <h3>Puzzle Title or Theme</h3>
+      <p class="pmeta">Brief description or theme note.</p>
+      <div class="pdate">Published 22 Apr 2026</div>
+      <span class="psize">15&times;15 &nbsp;&middot;&nbsp; 28 clues</span>
+    </a>
+
+    ─────────────────────────────────────────────────────────────── -->
+
+    <!-- Empty state — remove this block once you have puzzles -->
+    <div class="empty-state">
+      <p>No puzzles published yet.<br>
+         Export an interactive puzzle from the Constructor and place it in the
+         <strong>puzzles/</strong> directory, then add an entry here.</p>
+      <div class="code">
+        &lt;a class="puzzle-card" href="puzzles/my-puzzle.html"&gt;<br>
+        &nbsp;&nbsp;&lt;div class="pnum"&gt;No. 001&lt;/div&gt;<br>
+        &nbsp;&nbsp;&lt;h3&gt;Puzzle Title&lt;/h3&gt;<br>
+        &nbsp;&nbsp;&lt;p class="pmeta"&gt;Theme note&lt;/p&gt;<br>
+        &nbsp;&nbsp;&lt;div class="pdate"&gt;22 Apr 2026&lt;/div&gt;<br>
+        &nbsp;&nbsp;&lt;span class="psize"&gt;15&times;15 &middot; 28 clues&lt;/span&gt;<br>
+        &lt;/a&gt;
+      </div>
+    </div>
+
+  </div>
+
+  <div class="foot">
+    The Cryptic Compiler &nbsp;·&nbsp; A Puzzlemaker's Instrument &nbsp;·&nbsp; All Rights Reserved
+  </div>
+
+</div>
+
+<script>
+  // Set today's date in the dateline
+  var d = new Date();
+  var days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  var months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  var ord = d.getDate();
+  var sfx = ord===1||ord===21||ord===31?'st':ord===2||ord===22?'nd':ord===3||ord===23?'rd':'th';
+  document.getElementById('dateline').textContent =
+    days[d.getDay()] + ', ' + ord + sfx + ' ' + months[d.getMonth()] + ' ' + d.getFullYear();
+</script>
+</body>
+</html>
