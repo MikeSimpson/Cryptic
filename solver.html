@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=5">
+<title>The Cryptic Compiler — Solver</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=UnifrakturMaguntia&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+/* ── Reset & base ── */
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{min-height:100vh;background:#e2d9c4;background-image:repeating-linear-gradient(0deg,transparent,transparent 26px,rgba(0,0,0,.04) 26px,rgba(0,0,0,.04) 27px);font-family:'Crimson Pro',Georgia,serif;color:#1a0e04;}
+
+/* ── Masthead ── */
+.masthead{text-align:center;padding:20px 20px 14px;border-bottom:4px double #1a0e04;background:rgba(226,217,196,.97);position:sticky;top:0;z-index:50;}
+.masthead h1{font-family:'UnifrakturMaguntia',cursive;font-size:clamp(28px,6vw,48px);color:#1a0e04;letter-spacing:.02em;line-height:1;}
+.masthead .sub{font-family:'Space Mono',monospace;font-size:7.5px;letter-spacing:.22em;text-transform:uppercase;color:#6a5a38;margin-top:3px;}
+
+/* ── Import screen ── */
+#import-screen{max-width:680px;margin:0 auto;padding:28px 20px 60px;}
+.import-card{background:rgba(255,252,240,.9);border:1px solid rgba(0,0,0,.18);border-top:3px solid #1a0e04;padding:24px;}
+.import-card h2{font-family:'Playfair Display',serif;font-size:21px;font-weight:900;margin-bottom:6px;}
+.import-card .intro{font-size:14px;color:#5a4a28;line-height:1.6;margin-bottom:16px;}
+.drop-zone{border:2px dashed rgba(0,0,0,.25);padding:20px;text-align:center;cursor:pointer;transition:background .15s,border-color .15s;background:rgba(255,252,240,.5);margin-bottom:12px;}
+.drop-zone.drag-over{background:rgba(254,243,220,.9);border-color:#c8830a;}
+.drop-zone p{font-size:13px;color:#8a7a50;font-style:italic;}
+.drop-zone .dicon{font-family:'Playfair Display',serif;font-size:28px;color:#c8b880;display:block;margin-bottom:5px;}
+textarea.json-in{width:100%;height:160px;background:rgba(255,252,240,.7);border:1px solid rgba(0,0,0,.2);padding:10px 12px;font-family:'Space Mono',monospace;font-size:11px;color:#1a0e04;resize:vertical;outline:none;line-height:1.6;}
+textarea.json-in:focus{border-color:#1a0e04;}
+.btn-row{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
+.btn{padding:9px 18px;background:#1a0e04;color:#f0ead8;border:none;font-family:'Space Mono',monospace;font-size:10.5px;cursor:pointer;letter-spacing:.04em;border-radius:2px;touch-action:manipulation;}
+.btn:hover{opacity:.8;}
+.btn.sec{background:#3a2a10;}
+.err-msg{margin-top:10px;padding:8px 12px;background:#ffe4e4;border:1px solid #c08080;color:#6a1818;font-family:'Space Mono',monospace;font-size:10.5px;display:none;}
+.format-hint{margin-top:18px;border-top:1px solid rgba(0,0,0,.15);padding-top:14px;}
+.format-hint h3{font-family:'Playfair Display',serif;font-size:15px;font-weight:700;margin-bottom:8px;}
+.format-hint pre{font-family:'Space Mono',monospace;font-size:9.5px;line-height:1.65;background:rgba(0,0,0,.06);padding:12px;overflow-x:auto;color:#2a1a08;}
+
+/* ── Puzzle screen ── */
+#puzzle-screen{display:none;max-width:680px;margin:0 auto;padding:12px 12px 100px;}
+.puz-meta{margin-bottom:12px;}
+.puz-meta .ptitle{font-family:'Playfair Display',serif;font-size:18px;font-weight:900;}
+.puz-meta .pinfo{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:#8a7a50;margin-top:3px;}
+.ctrls{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:10px;}
+.cbtn{display:inline-block;padding:8px 13px;background:#1a0e04;color:#f0ead8;font-family:'Space Mono',monospace;font-size:11px;border:none;cursor:pointer;border-radius:2px;touch-action:manipulation;}
+.cbtn:hover{opacity:.8;}
+.cbtn.g{background:#1a4a20;}.cbtn.r{background:#4a1818;}.cbtn.s{background:#3a2a10;}
+#msg{font-size:12px;color:#555;margin-bottom:8px;min-height:16px;font-family:'Space Mono',monospace;}
+#gwo{overflow:hidden;margin-bottom:12px;}
+#gw{display:inline-block;border:2.5px solid #1a0e04;background:#1a0e04;transform-origin:top left;-webkit-transform-origin:top left;transition:transform .2s;-webkit-transition:-webkit-transform .2s;}
+#gw table{border-collapse:collapse;}
+#gw td{background:#fffdf8;border:.5px solid #c8b896;position:relative;vertical-align:top;text-align:center;}
+#gw td.blk{background:#1a0e04;}
+#gw td.hl{background:#fef0cc;}
+#gw td input{position:absolute;top:0;left:0;width:100%;height:100%;background:transparent;border:none;outline:none;text-align:center;font-family:'Courier New',Courier,monospace;font-weight:700;text-transform:uppercase;color:#1a0e04;padding:0;-webkit-appearance:none;border-radius:0;}
+#gw td input.err{color:#cc0000;}
+.celnum{position:absolute;top:1px;left:2px;font-size:8px;font-family:'Courier New',Courier,monospace;color:#000;font-weight:700;line-height:1;z-index:1;pointer-events:none;}
+.cs{margin-bottom:14px;}
+.cs h2{font-family:'Playfair Display',serif;font-size:16px;font-weight:700;border-bottom:1.5px solid #1a0e04;margin-bottom:6px;padding-bottom:3px;}
+.cl{list-style:none;padding:0;}
+.cl li{font-size:13.5px;line-height:1.65;margin-bottom:3px;display:flex;gap:6px;cursor:pointer;padding:2px 4px;border-left:3px solid transparent;transition:background .1s;}
+.cl li:hover{background:#f0e8d4;}
+.cl li.active{background:#fef0cc;border-left-color:#c8830a;}
+.cl li.done .ctxt{text-decoration:line-through;opacity:.45;}
+.cn{font-family:'Courier New',Courier,monospace;font-size:10.5px;font-weight:700;min-width:32px;flex-shrink:0;color:#6a5a38;padding-top:2px;}
+.ctxt{flex:1;}
+#cbar{position:fixed;bottom:0;left:0;right:0;background:#1a0e04;z-index:100;}
+#hz{display:none;padding:5px 8px 2px;gap:4px;justify-content:center;background:#2a2010;}
+.hzbox{width:26px;height:26px;background:#f0ead8;border:1px solid #c8b880;display:inline-flex;align-items:center;justify-content:center;font-family:'Courier New',Courier,monospace;font-weight:700;font-size:13px;color:#1a0e04;}
+#barmain{display:flex;align-items:center;padding:6px 8px;gap:6px;}
+.navbtn{background:#3a2a18;color:#f0ead8;border:none;padding:8px 13px;font-size:15px;cursor:pointer;border-radius:2px;touch-action:manipulation;flex-shrink:0;}
+#bartxt{flex:1;font-size:12.5px;color:#f0ead8;line-height:1.35;font-family:'Crimson Pro',serif;font-style:italic;}
+#dirtog{background:#5a3888;}
+</style>
+</head>
+<body>
+
+<div class="masthead">
+  <h1>The Cryptic Compiler</h1>
+  <div class="sub">Interactive Solver &nbsp;·&nbsp; Import a Puzzle to Begin</div>
+</div>
+
+<!-- ── IMPORT SCREEN ── -->
+<div id="import-screen">
+  <div class="import-card">
+    <h2>Load a Puzzle</h2>
+    <p class="intro">Paste puzzle JSON below, or drag and drop a <code>.json</code> file.
+       Puzzles should use the Cryptic Puzzle Format (CPF v1) — see the example below.</p>
+
+    <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-in').click()">
+      <span class="dicon">&#x25BC;</span>
+      <p>Drop a .json file here, or click to browse</p>
+      <input type="file" id="file-in" accept=".json,application/json" style="display:none">
+    </div>
+
+    <textarea class="json-in" id="json-in" placeholder='Paste puzzle JSON here, e.g. {"format":"cryptic-puzzle-v1","grid":{"size":15,...},...}'></textarea>
+
+    <div class="btn-row">
+      <button class="btn" onclick="loadPuzzle()">Load Puzzle</button>
+      <button class="btn sec" onclick="loadExample()">Load Example</button>
+    </div>
+    <div class="err-msg" id="err"></div>
+
+    <div class="format-hint">
+      <h3>Puzzle JSON Format (CPF v1)</h3>
+      <pre>{
+  "format": "cryptic-puzzle-v1",
+  "meta": {
+    "title": "Daily Cryptic No. 1234",
+    "publication": "The Times",
+    "date": "2024-01-15",
+    "setter": "Araucaria"
+  },
+  "grid": {
+    "size": 15,
+    "black_cells": [
+      [0,3],[0,7],[0,11],[1,5],[2,1],[2,9]
+    ]
+  },
+  "clues": {
+    "across": [
+      {"number": 1, "clue": "Ring fencing kept back score (7)", "answer": null},
+      {"number": 5, "clue": "Shelter in Swiss city (6)", "answer": null}
+    ],
+    "down": [
+      {"number": 1, "clue": "Crazy fool dropping head (6)", "answer": null},
+      {"number": 2, "clue": "Composer left unfinished (5)", "answer": null}
+    ]
+  }
+}</pre>
+      <p style="font-size:12px;color:#8a7a50;margin-top:8px;line-height:1.6;">
+        <strong>black_cells</strong>: array of [row, col] pairs, 0-indexed from top-left.<br>
+        <strong>answer</strong>: the solution word (uppercase, no spaces) — or <code>null</code> if unknown.
+        Check and Reveal are only available when all answers are provided.
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- ── PUZZLE SCREEN ── -->
+<div id="puzzle-screen">
+  <div class="puz-meta">
+    <div class="ptitle" id="ptitle"></div>
+    <div class="pinfo" id="pinfo"></div>
+  </div>
+  <div class="ctrls" id="ctrls">
+    <button class="cbtn" onclick="chk()" id="btn-chk" style="display:none">Check</button>
+    <button class="cbtn g" onclick="rv()" id="btn-rv" style="display:none">Reveal</button>
+    <button class="cbtn r" onclick="clrE()" id="btn-clr" style="display:none">Clear errors</button>
+    <button class="cbtn s" onclick="goImport()">&#8592; Load another</button>
+  </div>
+  <div id="msg"></div>
+  <div id="gwo"><div id="gw"></div></div>
+  <div id="ac-col"></div>
+  <div id="dn-col"></div>
+  <div id="cbar">
+    <div id="hz"></div>
+    <div id="barmain">
+      <button class="navbtn" onclick="prevC()">&#9664;</button>
+      <div id="bartxt">Loading&hellip;</div>
+      <button class="navbtn" id="dirtog" onclick="togDir()" style="display:none">&#x2195;</button>
+      <button class="navbtn" onclick="nextC()">&#9654;</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────────────────────
+// PUZZLE STATE
+// ─────────────────────────────────────────────────────────────────────────────
+var PUZZLE = null;   // parsed puzzle data
+var KEY = {};        // "r,c" -> answer letter (empty if no answers)
+var CLUES = [];      // [{dir,number,numStr,txt,cells}]
+var CELL_AC = {};    // "r,c" -> index into CLUES (across)
+var CELL_DN = {};    // "r,c" -> index into CLUES (down)
+var GS = 0;          // grid size
+var CS = 36;         // cell size px
+var BLACKS = null;   // Set of "r,c"
+var activeCI = -1;
+var HAS_ANSWERS = false;
+var fs = 1;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// IMPORT HANDLING
+// ─────────────────────────────────────────────────────────────────────────────
+var dz = document.getElementById('drop-zone');
+dz.addEventListener('dragover', function(e){ e.preventDefault(); dz.classList.add('drag-over'); });
+dz.addEventListener('dragleave', function(){ dz.classList.remove('drag-over'); });
+dz.addEventListener('drop', function(e){
+  e.preventDefault(); dz.classList.remove('drag-over');
+  var file = e.dataTransfer.files[0];
+  if(file) readFile(file);
+});
+document.getElementById('file-in').addEventListener('change', function(){
+  if(this.files[0]) readFile(this.files[0]);
+});
+function readFile(file){
+  var reader = new FileReader();
+  reader.onload = function(e){ document.getElementById('json-in').value = e.target.result; };
+  reader.readAsText(file);
+}
+
+function showErr(msg){
+  var el = document.getElementById('err');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+function hideErr(){ document.getElementById('err').style.display = 'none'; }
+
+function loadExample(){
+  var ex = {
+    "format":"cryptic-puzzle-v1",
+    "meta":{"title":"Example Cryptic","publication":"The Compiler","date":"2025-04-27","setter":"Demo"},
+    "grid":{
+      "size":7,
+      "black_cells":[[0,3],[1,1],[1,5],[2,3],[3,0],[3,6],[4,3],[5,1],[5,5],[6,3]]
+    },
+    "clues":{
+      "across":[
+        {"number":1,"clue":"Confuse setter in a haze (4)","answer":"DAZE"},
+        {"number":4,"clue":"Poet penning lines about cat (4)","answer":"PUMA"},
+        {"number":6,"clue":"Workers' leader gets rise somehow (4)","answer":"RISE"},
+        {"number":7,"clue":"Sounds like bare rocky outcrop (4)","answer":"CRAG"}
+      ],
+      "down":[
+        {"number":1,"clue":"Fruit in a drain, oddly (4)","answer":"DATE"},
+        {"number":2,"clue":"Endless argument about nothing (3)","answer":"ROW"},
+        {"number":3,"clue":"Brief note on English river (3)","answer":"EXE"},
+        {"number":5,"clue":"Roman emperor's last remains (4)","answer":"NERO"}
+      ]
+    }
+  };
+  document.getElementById('json-in').value = JSON.stringify(ex, null, 2);
+}
+
+function loadPuzzle(){
+  hideErr();
+  var raw = document.getElementById('json-in').value.trim();
+  if(!raw){ showErr('Paste puzzle JSON first.'); return; }
+  var data;
+  try{ data = JSON.parse(raw); }
+  catch(e){ showErr('Invalid JSON: ' + e.message); return; }
+  var err = validatePuzzle(data);
+  if(err){ showErr(err); return; }
+  buildPuzzle(data);
+}
+
+function validatePuzzle(d){
+  if(!d || typeof d !== 'object') return 'Not a valid puzzle object.';
+  if(!d.grid || typeof d.grid.size !== 'number') return 'Missing grid.size.';
+  if(d.grid.size < 3 || d.grid.size > 25) return 'grid.size must be 3-25.';
+  if(!Array.isArray(d.grid.black_cells)) return 'Missing grid.black_cells array.';
+  if(!d.clues || !Array.isArray(d.clues.across) || !Array.isArray(d.clues.down))
+    return 'Missing clues.across or clues.down arrays.';
+  return null;
+}
+
+function goImport(){
+  document.getElementById('puzzle-screen').style.display = 'none';
+  document.getElementById('import-screen').style.display = 'block';
+  activeCI = -1;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PUZZLE BUILDING
+// ─────────────────────────────────────────────────────────────────────────────
+function buildPuzzle(data){
+  PUZZLE = data;
+  GS = data.grid.size;
+
+  // Build black cell set
+  BLACKS = {};
+  for(var i = 0; i < data.grid.black_cells.length; i++){
+    var bc = data.grid.black_cells[i];
+    BLACKS[bc[0]+','+bc[1]] = true;
+  }
+
+  // Compute standard crossword numbering
+  var nums = {}; // "r,c" -> number
+  var numToCell = {}; // number -> "r,c"
+  var n = 1;
+  for(var r = 0; r < GS; r++){
+    for(var c = 0; c < GS; c++){
+      var k = r+','+c;
+      if(BLACKS[k]) continue;
+      var sH = (c===0||BLACKS[r+','+(c-1)]) && c+1<GS && !BLACKS[r+','+(c+1)];
+      var sV = (r===0||BLACKS[(r-1)+','+c]) && r+1<GS && !BLACKS[(r+1)+','+c];
+      if(sH||sV){ nums[k]=n; numToCell[n]=k; n++; }
+    }
+  }
+
+  // Helper: follow cells in a direction
+  function followCells(row, col, dir){
+    var cells = [];
+    var rr = row, cc = col;
+    while(rr>=0 && rr<GS && cc>=0 && cc<GS && !BLACKS[rr+','+cc]){
+      cells.push(rr+','+cc);
+      if(dir==='h') cc++; else rr++;
+    }
+    return cells;
+  }
+
+  // Build CLUES array and KEY
+  CLUES = [];
+  CELL_AC = {};
+  CELL_DN = {};
+  KEY = {};
+  HAS_ANSWERS = true;
+
+  function addClues(arr, dir){
+    for(var i = 0; i < arr.length; i++){
+      var cl = arr[i];
+      var startK = numToCell[cl.number];
+      if(!startK) continue; // number not found in grid
+      var parts = startK.split(',');
+      var sr = +parts[0], sc = +parts[1];
+      var cells = followCells(sr, sc, dir==='across'?'h':'v');
+      if(cells.length < 2) continue;
+
+      // Fill answer into KEY if provided
+      if(cl.answer && typeof cl.answer === 'string'){
+        var ans = cl.answer.toUpperCase().replace(/[^A-Z]/g,'');
+        for(var j = 0; j < Math.min(ans.length, cells.length); j++){
+          KEY[cells[j]] = ans[j];
+        }
+      } else {
+        HAS_ANSWERS = false;
+      }
+
+      var ci = CLUES.length;
+      CLUES.push({
+        dir: dir==='across'?'A':'D',
+        number: cl.number,
+        numStr: String(cl.number),
+        txt: cl.clue || '',
+        cells: cells
+      });
+
+      for(var j = 0; j < cells.length; j++){
+        if(dir==='across') CELL_AC[cells[j]] = ci;
+        else CELL_DN[cells[j]] = ci;
+      }
+    }
+  }
+
+  addClues(data.clues.across, 'across');
+  addClues(data.clues.down, 'down');
+
+  // Sort CLUES: across first (by number), then down (by number)
+  CLUES.sort(function(a,b){
+    if(a.dir!==b.dir) return a.dir==='A'?-1:1;
+    return a.number-b.number;
+  });
+  // Rebuild cell maps after sort
+  CELL_AC = {}; CELL_DN = {};
+  for(var i=0;i<CLUES.length;i++){
+    var cl = CLUES[i];
+    for(var j=0;j<cl.cells.length;j++){
+      if(cl.dir==='A') CELL_AC[cl.cells[j]]=i;
+      else CELL_DN[cl.cells[j]]=i;
+    }
+  }
+
+  renderPuzzle(data, nums);
+}
+
+function renderPuzzle(data, nums){
+  // Meta
+  var meta = data.meta || {};
+  document.getElementById('ptitle').textContent = meta.title || 'Cryptic Crossword';
+  var infoParts = [];
+  if(meta.publication) infoParts.push(meta.publication);
+  if(meta.setter) infoParts.push('Set by '+meta.setter);
+  if(meta.date) infoParts.push(meta.date);
+  document.getElementById('pinfo').textContent = infoParts.join(' \u00b7 ');
+
+  // Show/hide answer buttons
+  document.getElementById('btn-chk').style.display = HAS_ANSWERS?'':'none';
+  document.getElementById('btn-rv').style.display = HAS_ANSWERS?'':'none';
+  document.getElementById('btn-clr').style.display = HAS_ANSWERS?'':'none';
+
+  // Build grid
+  var gw = document.getElementById('gw');
+  gw.innerHTML = '';
+  var tbl = document.createElement('table');
+  for(var r=0;r<GS;r++){
+    var tr = document.createElement('tr');
+    for(var c=0;c<GS;c++){
+      var td = document.createElement('td');
+      td.style.width = td.style.height = CS+'px';
+      var k = r+','+c;
+      if(BLACKS[k]){
+        td.className='blk';
+      } else {
+        var num = nums[k];
+        if(num){
+          var sp = document.createElement('span');
+          sp.className='celnum';
+          sp.textContent = num;
+          td.appendChild(sp);
+        }
+        var inp = document.createElement('input');
+        inp.type='text';inp.maxLength=1;
+        inp.setAttribute('data-r',r);inp.setAttribute('data-c',c);
+        inp.setAttribute('autocomplete','off');inp.setAttribute('autocorrect','off');
+        inp.setAttribute('autocapitalize','characters');inp.setAttribute('spellcheck','false');
+        inp.setAttribute('inputmode','text');
+        inp.addEventListener('input', function(){ onI(this); });
+        inp.addEventListener('focus', function(){ cellFocus(this); });
+        inp.addEventListener('keydown', function(e){ onK(this,e); });
+        td.appendChild(inp);
+        td.style.fontSize = Math.max(11, Math.min(17, CS-18))+'px';
+      }
+      tr.appendChild(td);
+    }
+    tbl.appendChild(tr);
+  }
+  gw.appendChild(tbl);
+
+  // Build clue lists
+  function buildList(arr, label, containerId){
+    var div = document.getElementById(containerId);
+    div.innerHTML = '';
+    var sec = document.createElement('div');sec.className='cs';
+    var h2 = document.createElement('h2');h2.textContent=label;sec.appendChild(h2);
+    var ol = document.createElement('ol');ol.className='cl';
+    for(var i=0;i<arr.length;i++){
+      var cl = arr[i];
+      var li = document.createElement('li');
+      li.setAttribute('data-ci', cl._ci);
+      li.onclick = (function(ci){ return function(){ clueClick(ci); }; })(cl._ci);
+      var cn = document.createElement('span');cn.className='cn';cn.textContent=cl.number+(label==='Across'?'A':'D');
+      var ctxt = document.createElement('span');ctxt.className='ctxt';ctxt.textContent=cl.txt;
+      li.appendChild(cn);li.appendChild(ctxt);
+      ol.appendChild(li);
+    }
+    sec.appendChild(ol);div.appendChild(sec);
+  }
+
+  // Tag clues with their CLUES[] index before filtering by direction
+  for(var i=0;i<CLUES.length;i++) CLUES[i]._ci = i;
+  buildList(CLUES.filter(function(c){return c.dir==='A';}), 'Across', 'ac-col');
+  buildList(CLUES.filter(function(c){return c.dir==='D';}), 'Down', 'dn-col');
+
+  // Switch screens
+  document.getElementById('import-screen').style.display='none';
+  document.getElementById('puzzle-screen').style.display='block';
+
+  // Fit grid
+  fit();
+  if(window.addEventListener) window.addEventListener('resize', fit, false);
+
+  // Visual viewport for keyboard
+  if(window.visualViewport){
+    window.visualViewport.addEventListener('resize', adjBar);
+    window.visualViewport.addEventListener('scroll', adjBar);
+  }
+
+  // Select first clue
+  activeCI = -1;
+  if(CLUES.length>0) selectClue(0);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GRID ZOOM
+// ─────────────────────────────────────────────────────────────────────────────
+function fit(){
+  var gw=document.getElementById('gw');
+  var gwo=document.getElementById('gwo');
+  if(!gw||!gwo)return;
+  var vw=window.innerWidth||document.documentElement.clientWidth||360;
+  var gW=GS*CS+6;
+  fs=gW<=vw-24?1:Math.floor((vw-24)/gW*100)/100;
+  scl(fs);
+}
+function scl(s){
+  var gw=document.getElementById('gw');
+  var gwo=document.getElementById('gwo');
+  if(!gw||!gwo)return;
+  gw.style.WebkitTransform='scale('+s+')';
+  gw.style.transform='scale('+s+')';
+  gwo.style.height=Math.round((GS*CS+6)*s)+'px';
+}
+function adjBar(){
+  var bar=document.getElementById('cbar');if(!bar)return;
+  if(window.visualViewport){
+    var kbH=Math.max(0,window.innerHeight-window.visualViewport.height-window.visualViewport.offsetTop);
+    bar.style.bottom=kbH+'px';
+  }
+}
+document.addEventListener('focusout',function(){
+  setTimeout(function(){
+    var ae=document.activeElement;
+    if(!ae||!ae.getAttribute('data-r'))scl(fs);
+  },300);
+},true);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CELL INPUT HELPERS
+// ─────────────────────────────────────────────────────────────────────────────
+function gi(r,c){
+  var a=document.querySelectorAll('#gw input[data-r="'+r+'"][data-c="'+c+'"]');
+  return a.length?a[0]:null;
+}
+function getCells(ci){ return CLUES[ci]?CLUES[ci].cells:[]; }
+function isSolved(ci){
+  if(!HAS_ANSWERS)return false;
+  var cells=getCells(ci);if(!cells.length)return false;
+  for(var i=0;i<cells.length;i++){
+    var p=cells[i].split(',');var inp=gi(p[0],p[1]);
+    if(!inp||inp.value!==KEY[cells[i]])return false;
+  }
+  return true;
+}
+
+function hlActive(){
+  var tds=document.getElementById('gw').getElementsByTagName('td');
+  for(var i=0;i<tds.length;i++) tds[i].className=tds[i].className.replace(/\bhl\b/g,'').trim();
+  if(activeCI<0)return;
+  var cells=getCells(activeCI);
+  for(var i=0;i<cells.length;i++){
+    var p=cells[i].split(',');var inp=gi(p[0],p[1]);
+    if(inp&&inp.parentNode){var cn=inp.parentNode.className;if(cn.indexOf('hl')<0)inp.parentNode.className=(cn?cn+' ':'')+'hl';}
+  }
+}
+function updHz(){
+  var hz=document.getElementById('hz');
+  if(activeCI<0||!CLUES[activeCI]||CLUES[activeCI].dir!=='D'){hz.innerHTML='';hz.style.display='none';return;}
+  var cells=getCells(activeCI);var html='';
+  for(var i=0;i<cells.length;i++){var p=cells[i].split(',');var inp=gi(p[0],p[1]);html+='<span class="hzbox">'+(inp&&inp.value?inp.value:'')+'</span>';}
+  hz.innerHTML=html;hz.style.display='flex';
+}
+function updateBar(){
+  var bt=document.getElementById('bartxt');
+  var dt=document.getElementById('dirtog');
+  var prev=document.querySelector('.cl li.active');if(prev)prev.className=prev.className.replace(/\bactive\b/g,'').trim();
+  if(activeCI<0){bt.textContent='Tap a clue to begin';dt.style.display='none';updHz();return;}
+  var cl=CLUES[activeCI];
+  bt.textContent=(cl.numStr||cl.number)+(cl.dir==='A'?'A':'D')+': '+cl.txt;
+  var li=document.querySelector('[data-ci="'+activeCI+'"]');
+  if(li){li.className=(li.className.replace(/\bactive\b/g,'')+' active').trim();try{li.scrollIntoView({block:'nearest'});}catch(e){li.scrollIntoView(false);}}
+  var cells=getCells(activeCI);var hasOther=false;
+  for(var i=0;i<cells.length;i++){var ki=cells[i];if(cl.dir==='A'?CELL_DN[ki]!==undefined:CELL_AC[ki]!==undefined){hasOther=true;break;}}
+  dt.style.display=hasOther?'':'none';
+  dt.textContent=cl.dir==='A'?'\u2195':'\u2194';
+  updHz();
+}
+function selectClue(ci,focusK){
+  activeCI=ci;updateBar();hlActive();
+  var cells=getCells(ci);if(!cells.length)return;
+  var fk=focusK||null;
+  if(!fk){fk=cells[0];for(var i=0;i<cells.length;i++){var p=cells[i].split(',');var inp=gi(p[0],p[1]);if(inp&&!inp.value){fk=cells[i];break;}}}
+  var fp=fk.split(',');var finp=gi(fp[0],fp[1]);if(finp)finp.focus();
+}
+function cellFocus(el){
+  scl(1);
+  var r=el.getAttribute('data-r');var c=el.getAttribute('data-c');var k=r+','+c;
+  if(activeCI>=0){var cells=getCells(activeCI);for(var i=0;i<cells.length;i++){if(cells[i]===k){updHz();return;}}}
+  var acI=CELL_AC[k]!==undefined?CELL_AC[k]:-1;
+  var dnI=CELL_DN[k]!==undefined?CELL_DN[k]:-1;
+  var nci=acI>=0?acI:(dnI>=0?dnI:-1);
+  if(nci>=0){activeCI=nci;updateBar();hlActive();updHz();}
+}
+function clueClick(ci){ selectClue(ci); }
+function togDir(){
+  if(activeCI<0)return;
+  var ae=document.activeElement;
+  var k=ae&&ae.getAttribute('data-r')?(ae.getAttribute('data-r')+','+ae.getAttribute('data-c')):getCells(activeCI)[0];
+  var cl=CLUES[activeCI];
+  var other=cl.dir==='A'?(CELL_DN[k]!==undefined?CELL_DN[k]:-1):(CELL_AC[k]!==undefined?CELL_AC[k]:-1);
+  if(other>=0)selectClue(other,k);
+}
+function nextC(){
+  if(!CLUES.length)return;
+  var s=activeCI<0?-1:activeCI;
+  for(var i=1;i<=CLUES.length;i++){var idx=(s+i)%CLUES.length;if(!isSolved(idx)){selectClue(idx);return;}}
+  selectClue((s+1+CLUES.length)%CLUES.length);
+}
+function prevC(){
+  if(!CLUES.length)return;
+  var s=activeCI<0?0:activeCI;
+  for(var i=1;i<=CLUES.length;i++){var idx=(s-i+CLUES.length)%CLUES.length;if(!isSolved(idx)){selectClue(idx);return;}}
+  selectClue((s-1+CLUES.length)%CLUES.length);
+}
+function onI(el){
+  var v=el.value.replace(/[^a-zA-Z]/g,'').toUpperCase().slice(-1);el.value=v;updHz();
+  if(!v||activeCI<0)return;
+  var k=el.getAttribute('data-r')+','+el.getAttribute('data-c');
+  var cells=getCells(activeCI);
+  for(var i=0;i<cells.length-1;i++){if(cells[i]===k){var p=cells[i+1].split(',');var nx=gi(p[0],p[1]);if(nx)nx.focus();break;}}
+}
+function onK(el,e){
+  var r=+el.getAttribute('data-r');var c=+el.getAttribute('data-c');var k=r+','+c;
+  if(e.key==='Backspace'&&!el.value){
+    if(activeCI>=0){var cells=getCells(activeCI);for(var i=1;i<cells.length;i++){if(cells[i]===k){var p=cells[i-1].split(',');var pv=gi(p[0],p[1]);if(pv)pv.focus();break;}}}
+    return;
+  }
+  if(e.key==='ArrowDown'){e.preventDefault();var nx=gi(r+1,c);if(nx)nx.focus();}
+  else if(e.key==='ArrowUp'){e.preventDefault();var pv=gi(r-1,c);if(pv)pv.focus();}
+  else if(e.key==='ArrowRight'){e.preventDefault();var nx=gi(r,c+1);if(nx)nx.focus();}
+  else if(e.key==='ArrowLeft'){e.preventDefault();var pv=gi(r,c-1);if(pv)pv.focus();}
+}
+function updDone(){
+  var lis=document.getElementsByTagName('li');
+  for(var i=0;i<lis.length;i++){
+    var ci=lis[i].getAttribute('data-ci');if(ci===null)continue;
+    var done=isSolved(+ci);var cn=lis[i].className;
+    if(done&&cn.indexOf('done')<0)lis[i].className=(cn+' done').trim();
+    else if(!done)lis[i].className=cn.replace(/\bdone\b/g,'').trim();
+  }
+}
+function chk(){
+  if(!HAS_ANSWERS)return;
+  var a=document.querySelectorAll('#gw input[data-r]');var w=0,ok=0,bl=0;
+  for(var i=0;i<a.length;i++){var el=a[i];var k=el.getAttribute('data-r')+','+el.getAttribute('data-c');var ex=KEY[k];if(!ex)continue;if(!el.value){bl++;continue;}if(el.value===ex){el.className=el.className.replace('err','').trim();ok++;}else{if(el.className.indexOf('err')<0)el.className+=' err';w++;}}
+  var msg=document.getElementById('msg');
+  if(w)msg.textContent=w+' incorrect, '+ok+' correct'+(bl?' ('+bl+' empty)':'')+ '.';
+  else if(ok)msg.textContent=bl?ok+' correct, '+bl+' empty.':'All correct!';
+  else msg.textContent='Fill in some letters first.';
+  updDone();
+}
+function clrE(){
+  var a=document.querySelectorAll('#gw input.err');
+  for(var i=0;i<a.length;i++){a[i].value='';a[i].className=a[i].className.replace('err','').trim();}
+  document.getElementById('msg').textContent='';
+}
+function rv(){
+  if(!HAS_ANSWERS)return;
+  var a=document.querySelectorAll('#gw input[data-r]');
+  for(var i=0;i<a.length;i++){var k=a[i].getAttribute('data-r')+','+a[i].getAttribute('data-c');if(KEY[k]){a[i].value=KEY[k];a[i].className=a[i].className.replace('err','').trim();}}
+  document.getElementById('msg').textContent='Revealed.';updDone();
+}
+</script>
+</body>
+</html>
